@@ -1,6 +1,6 @@
 /*ident	"@(#)cls4:src/alloc.c	1.4" */
 /*******************************************************************************
- 
+
 C++ source for the C++ Language System, Release 3.0.  This product
 is a new release of the original cfront developed in the computer
 science research center of AT&T Bell Laboratories.
@@ -56,7 +56,7 @@ void* chunk(int i)	// get memory that is not to be freed
 #include <new.h>
 #define NEW_SIZE size_t
 #else
-#define NEW_SIZE unsigned 
+#define NEW_SIZE size_t 
 #endif
 
 void* operator new(NEW_SIZE sz)	// get memory that might be freed
@@ -328,7 +328,7 @@ ptr::operator new(size_t sz)
 		(p+1)->tlist = 0;
 		DB(p->node::allocated=0);
 	}
-	else 
+	else
 		ptr_free = (Pptr) p->tlist;
 
 	mzero(p, sz);
@@ -379,4 +379,3 @@ templ_fct::operator delete(void* vp,size_t)
 	ptfct_free = p;
 	vp = 0;
 }
-

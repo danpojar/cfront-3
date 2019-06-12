@@ -1,6 +1,6 @@
 /*ident	"@(#)cls4:src/error.c	1.6" */
 /*******************************************************************************
- 
+
 C++ source for the C++ Language System, Release 3.0.  This product
 is a new release of the original cfront developed in the computer
 science research center of AT&T Bell Laboratories.
@@ -47,7 +47,7 @@ static char* abbrev_tbl[] = {
 	" initialize",
 #if EBCDIC
 	"", "", "", "", "", "", "", // fill out hole in ebcdic character set
-	
+
 #endif
 	"J",
 	" constructor",	// 'K' !
@@ -60,7 +60,7 @@ static char* abbrev_tbl[] = {
 	" reference",
 #if EBCDIC
 	"", "", "", "", "", "", "", // fill out hole in ebcdic character set
-	
+
 #endif
 	" statement",
 	" type",
@@ -108,7 +108,7 @@ void ext(int n)
 	exit(error_count?error_count:1);
 }
 
-/* static */ 
+/* static */
 void print_loc()
 {
 	loc* sl = (Cstmt) ? &Cstmt->where : 0;
@@ -209,7 +209,7 @@ int error(int t, loc* lc, const char* s, const ea& a0, const ea& a1, const ea& a
 
 		's'		"not implemented" message
 		'l'		"compiler limit exceeded" message
-    		0		error 
+    		0		error
     		'e'		error -- no newline
     		'i'		internal error (causes abort)
 		't'		error while printing error message
@@ -300,12 +300,12 @@ int error(int t, loc* lc, const char* s, const ea& a0, const ea& a1, const ea& a
 					fprintf(out_file," token(%d)",x);
 				break;
 			}
-			case 't':	// Ptype 
+			case 't':	// Ptype
 			{	Ptype tt = Ptype(a->p);
 				if (tt == 0) break;
 
 				putch(' ');
-			
+
 				int nt = ntok;
 				emode = 1;
 				tt->dcl_print(0);
@@ -330,11 +330,11 @@ int error(int t, loc* lc, const char* s, const ea& a0, const ea& a1, const ea& a
 				break;
 			}
 			case 'p':	// pointer
-			{	char* f = sizeof(char*)==sizeof(int)?" %d":" %ld";
+			{	const char* f = sizeof(char*)==sizeof(int)?" %d":" %ld";
 				fprintf(out_file,f,a->p);
 				break;
 			}
-			case 'a':	// fully qualified function 
+			case 'a':	// fully qualified function
 			{	Pname nn = Pname(a->p);
 				if (nn->tp->base!=FCT && nn->tp->base!=OVERLOAD)
 					error('i',"%n not function",nn);
@@ -392,13 +392,13 @@ int error(int t, loc* lc, const char* s, const ea& a0, const ea& a1, const ea& a
 	}
 */
 
-	if (user_error) 
+	if (user_error)
 		basic_inst::head->print_error_loc(user_error==2);
 
 	out_file = of; // restore before ext() for fflush()
 	if (!scan_started && t!='d' && t!='w') ext(4);
 
-        // now we may want to carry on 
+        // now we may want to carry on
 	switch (t) {
 	case 't':
 		if (--in_error) {
@@ -406,7 +406,7 @@ int error(int t, loc* lc, const char* s, const ea& a0, const ea& a1, const ea& a
 			//fflush(out_file);
 			return 0;
 		}
-	case 'i': 
+	case 'i':
 		ext(INTERNAL);
 	case 0:
 	case 'e':
@@ -510,9 +510,9 @@ display_expr( Pexpr ptr, char* label, int oneline )
 		putc('\n',stderr);
 		if ( !oneline ) {
 			++indent;
-			display_expr( ptr->cond, "cond" ); 
-			display_expr( ptr->e1, "e1" ); 
-			display_expr( ptr->e2, "e2" ); 
+			display_expr( ptr->cond, "cond" );
+			display_expr( ptr->e1, "e1" );
+			display_expr( ptr->e2, "e2" );
 			--indent;
 		}
 		break;
@@ -633,7 +633,7 @@ display_expr( Pexpr ptr, char* label, int oneline )
 			INDENT(indent);
 			fprintf(stderr, "n_anon==%s", n->n_anon);
 			fprintf(stderr, " n_list=='%s'", n->n_list?n->n_list->string:"<0>" );
-			fprintf(stderr, " n_qualifier=='%s'", n->n_qualifier?n->n_qualifier->string:"<0>" ); 
+			fprintf(stderr, " n_qualifier=='%s'", n->n_qualifier?n->n_qualifier->string:"<0>" );
 			if ( n->n_initializer ) {
 				fprintf(stderr, " n_initializer:\n" );
 				++indent;
@@ -653,7 +653,7 @@ display_expr( Pexpr ptr, char* label, int oneline )
 		if ( !oneline && ptr->base > 0
 		&&   (ptr->base<165 || ptr->base==MEMPTR) ) {
 			++indent;
-			display_expr( ptr->e1, "e1" ); 
+			display_expr( ptr->e1, "e1" );
 			display_expr( ptr->e2, "e2" );
 			--indent;
 		}
@@ -704,7 +704,7 @@ display_stmt( Pstmt ptr, char* label, int oneline )
 		putc('\n',stderr);
 		++indent;
 		{ for( Pstmt st = ptr->s;  st;  st = st->s_list )
-			display_stmt( ptr->s, "s" ); 
+			display_stmt( ptr->s, "s" );
 		}
 		--indent;
 		break;

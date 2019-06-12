@@ -1,6 +1,6 @@
 /*ident	"@(#)cls4:src/template.h	1.12" */
 /*******************************************************************************
- 
+
 C++ source for the C++ Language System, Release 3.0.  This product
 is a new release of the original cfront developed in the computer
 science research center of AT&T Bell Laboratories.
@@ -41,8 +41,8 @@ typedef class Pslot *Pbinding;
 typedef class cons *Pcons;
 
 class cons {
-/* A Lisp style cons cell to help build lists. 
- * The parameterized type facility should obviate 
+/* A Lisp style cons cell to help build lists.
+ * The parameterized type facility should obviate
  * the need for this type-unsafe nonsense. */
 public:
   	void *car;
@@ -73,24 +73,24 @@ public:
 *****************************************************************************/
 
 class templ_state {
-/* save relevant information when parsing friend 
+/* save relevant information when parsing friend
  * template within a class: currently, only instance
  * where a nested template can occur */
 public:
 	templ_state(); // save
 	~templ_state(); // restore
 private:
-  	Plist param_end;  
-  	Plist params;    
-  	Pcons templ_refs; 
-  	Pcons friend_templ_refs; 
+  	Plist param_end;
+  	Plist params;
+  	Pcons templ_refs;
+  	Pcons friend_templ_refs;
   	Pcons last_cons;
   	Pcons last_friend_cons;
 	Ptempl owner;
 };
 
 class templ_compilation {
-/* A templ_compilation holds the state relevant to the syntax 
+/* A templ_compilation holds the state relevant to the syntax
  * analysis of a class or member function template definition.				     *
  * There is exactly one instance of the type.  It mainly serves
  * as a device used to enforce modularity. */
@@ -106,21 +106,21 @@ public:
   	static Pexpr   actuals;   // list of actuals for explicit class template
   	static Ptable  templates; // templates defined during compilation
 
-  	static bool    in_progress; 
+  	static bool    in_progress;
   	static Ptstate save_templ;
 
-  	/* instantiation parameter parsing in progress. Used in the lexer 
-         * to ensure that name string are consed in the heap, rather than 
+  	/* instantiation parameter parsing in progress. Used in the lexer
+         * to ensure that name string are consed in the heap, rather than
          * being retained as pointers into the lex buffer. */
   	static int     parameters_in_progress;
   	static bool    formals_in_progress;
 
   	// the list of templates referenced by the top level definition being compiled.
-  	static Pcons   templ_refs; 
-  	static Pcons   friend_templ_refs; 
+  	static Pcons   templ_refs;
+  	static Pcons   friend_templ_refs;
   	static Pcons   last_cons;
   	static Pcons   last_friend_cons;
-  
+
   	void start(); // initialize templ_compilation state
   	void end(Pname class_name);
   	void end_of_compilation(); // Done with compilation, instantiate bodies
@@ -131,7 +131,7 @@ public:
 
   	void append_ref(Ptempl_inst ref); // add to templ_refs
   	void append_friend_ref(Ptempl_inst ref); // add to friend_templ_refs
-  	void instantiate_ref_templ(); // instantiate templ_refs 
+  	void instantiate_ref_templ(); // instantiate templ_refs
   	void clear_ref_templ(); // zero-out templ_refs
   	void clear_friend_ref_templ(); // zero-out friend_templ_refs
 
@@ -149,11 +149,11 @@ public:
   	Pfunt  is_template(char*,TOK);
 };
 
-/* 
- * The canonical template_compilation instance. 
- * templ_compilation exists as a class simply to provide 
- * a code and data packaging mechanism. 
- * There is exactly one generated instance of it. 
+/*
+ * The canonical template_compilation instance.
+ * templ_compilation exists as a class simply to provide
+ * a code and data packaging mechanism.
+ * There is exactly one generated instance of it.
  */
 extern templ_compilation *templp;
 
@@ -173,7 +173,7 @@ protected:
   	Plist       formals;        // The formal arguments to the template
   	Pcons       templ_refs;     // The templates referenced by this template
 
-         /* Use these state variables to set up the correct state for error processing. 
+         /* Use these state variables to set up the correct state for error processing.
 	 * They are used by the "error" routines for statement numbers.  */
   	Pname       Cdcl;
   	Pstmt       Cstmt;
@@ -190,12 +190,12 @@ protected:
 public:
 	virtual void dummy(); // for optimal vtbl laydown
 	virtual int has_friend(Pname)=0;
-	Plist get_formals() { return formals; }	
+	Plist get_formals() { return formals; }
   	int get_formals_count(); // should probably define a member
 	bool is_extrapolated() { return extrapolated ? true : false; }
 };
 
-class templ  : public basic_template { 
+class templ  : public basic_template {
 /* the template class representation */
   	friend class templ_inst;
   	friend class function_template;
@@ -203,10 +203,10 @@ class templ  : public basic_template {
 	friend class classdef;
 
 private:
-  	Ptempl_inst insts;	// template instantiations 
-  	Pbase 	basep;     	// template COBJ basetype 
+  	Ptempl_inst insts;	// template instantiations
+  	Pbase 	basep;     	// template COBJ basetype
   	Pfunt	fns;           	// member function declarations
-  	Pfunt	fns_end;        
+  	Pfunt	fns_end;
 	Pdata  	data;		// static data member declarations
 	Pdata  	data_end;
 public:
@@ -221,14 +221,14 @@ public:
   	templ(Plist,Pname);
   	void resolve_forward_decl(Plist,Pclass);
   	void instantiate_forward_decl();
-  
+
   	Pbase basetype() {return basep; } // uninstantiated base type
-  	Pbase inst_basetype(Pexpr actuals); // specific instantiation basetype 
+  	Pbase inst_basetype(Pexpr actuals); // specific instantiation basetype
   	Pclass classtype() { return Pclass(basep->b_name->tp); }
   	Pname typename4(Pexpr actuals);
- 	Pfunt collect_function_member(Pname); 
+ 	Pfunt collect_function_member(Pname);
  	Pdata collect_data_member(Pname);
-  	bool instantiate_bodies(); 
+  	bool instantiate_bodies();
 	int has_friend(Pname);
 };
 
@@ -246,7 +246,7 @@ class function_template : public basic_template {
 
   	Pname fn;             // The name of the member function
   	Pfunt next;           // connects the list of functions
-  	Pfunt gen_list;       // connects overloaded instances 
+  	Pfunt gen_list;       // connects overloaded instances
 public:
   	Pfunct_inst insts;    // instantiations of the template
   	function_template(templ&,Plist,Pname); 	// member functions
@@ -254,20 +254,20 @@ public:
 	Pname func_name() { return fn; }
 
   	void instantiate_forward_decl();
-  	Pfunct_inst get_match(Pexpr,Pfunct_inst,bool); 
+  	Pfunct_inst get_match(Pexpr,Pfunct_inst,bool);
   	Pfunct_inst get_inst(Pexpr,Pfunct_inst=0);
 	int has_friend(Pname);
 };
 
-class data_template : public basic_template 
-{ // explicitly initialized static data members 
+class data_template : public basic_template
+{ // explicitly initialized static data members
 	friend class templ;
 	friend class basic_inst;
 	friend class templ_inst;
 	Pname 	dat_mem;
 	Pdata	next;
 public:
-  	data_template(templ&,Plist,Pname); 	
+  	data_template(templ&,Plist,Pname);
 	int has_friend(Pname); // need override pure virtual
 };
 
@@ -276,14 +276,14 @@ public:
 // processing and instantiation, rather than the current strategy, which only
 // forces instantiations at the top level outside of any dcl-processing
 // context. It is retained in case we ever go back to the "interspersed" style
-// of instantiation. 
+// of instantiation.
 class state {
 public:
   Pname       Cdcl ;      // the global variables used by the error routines
   Pstmt       Cstmt ;
   Pname       dcl_list ;  // Holds the list of typedef names that are hidden
   Loc         curloc ;
-  
+
   int         curr_file ;
   Pexpr       curr_expr ;
   Pin         curr_icall ;
@@ -291,30 +291,30 @@ public:
   Pblock      curr_block;
   Pstmt       curr_switch;
 
-  int         bound  ;   
+  int         bound  ;
   int         inline_restr ;
   Loc         last_line ;
 
   state() {} ; // prevent used before set warnings.
   void save() ;
-  
-  void init() ; 
-  void restore() ; 
+
+  void init() ;
+  void restore() ;
 } ;
 
 
-class pointer_hash ; 
+class pointer_hash ;
 class tree_copy_info ;
 
 // A template starts out being uninstantiated, and is class_instantiated when
 // there is a refrence to it with actual arguments. It is body_instantiated at
 // the end of compilation, when all its function members are instantiated.
-enum inst_status { uninstantiated, 
+enum inst_status { uninstantiated,
 			function_instantiated, data_instantiated,
 			class_instantiated, body_instantiated };
 
 // templ_inst captures the arguments used in the instantiation of a template.
-// These instantiations are rooted in the templ object. 
+// These instantiations are rooted in the templ object.
 class basic_inst {
 /* SBL: go through these */
 	friend class template_instantiation;
@@ -336,7 +336,7 @@ public:
   static Pbase_inst head;	// head of list of active instantiations.
 protected:
   TOK	     isa;		// for the moment: CLASS,FCT
-  Pname      tname;         	// name of instantiation 
+  Pname      tname;         	// name of instantiation
   Pname      namep;         	// version of name in ktbl (class) or gtbl(funct)
   state      context;      	// the context of this instantiation
   Plist      hidden_globals; 	// list of globals hidden during instantiation
@@ -346,7 +346,7 @@ protected:
 
   char *instantiation_string();
 
-  // The class correspondence table. This table is initialized 
+  // The class correspondence table. This table is initialized
   // when the class definition is instantiated. Subsequently, it is used to
   // initial member correspondence tables before copy process is initiated.
   pointer_hash *corr;
@@ -359,7 +359,7 @@ protected:
 
   void expose_parameter_names();
   void hide_parameter_names();
-  
+
   TOK isA() { return isa; }
 };
 
@@ -373,7 +373,7 @@ class funct_inst : public basic_inst {
 	friend class function_template;
   	friend class templ_fct;
 private:
-  	Pfunct_inst next;         // list of template instantiations 
+  	Pfunct_inst next;         // list of template instantiations
 	Pfunct_inst tfct_copy(Pcons&,bool);
         void bind_formals();
 public:
@@ -386,7 +386,7 @@ public:
   	Pfunt def;   // template definition; this is an instantiation.
   	bool refp;   // notes template references during a C++ definition
   	bool friend_refp;   // notes template references during a C++ definition
-	Pbinding binding; // actual types binding to formals	
+	Pbinding binding; // actual types binding to formals
 	bool f_copy_hook(Pnode&);
 };
 
@@ -397,9 +397,9 @@ class templ_inst : public basic_inst  {
   	friend class templ_classdef;
   	friend Pcons make_ref_copy(pointer_hash&,tree_copy_info&,Pcons);
 private:
-  	Ptempl_inst next;     // linked list of template instantiations 
+  	Ptempl_inst next;     // linked list of template instantiations
   	Ptempl_inst forward;  // this instantiation same as `forward'
-public: 
+public:
   templ_inst (Pexpr act,  Ptempl owner);
   templ_inst (Pexpr act,  Ptempl owner, TOK csu);
   bool actuals_match(Pexpr check_actuals); /* merge this and function's */
@@ -416,11 +416,11 @@ public:
 public:
   Ptempl        def;         // The template definition, for which this is an
 			     // instantiation.
-  bool         refp ;        // flag to note template references during a C++ 
+  bool         refp ;        // flag to note template references during a C++
 			     // definition
 
-  bool         friend_refp ;        // flag to note template references during a C++ 
-	void explicit_inst(); 
+  bool         friend_refp ;        // flag to note template references during a C++
+	void explicit_inst();
   // Bind the formals before an instantiation
   void bind_formals() ;
 
@@ -430,7 +430,7 @@ public:
 
   // get the class associated with this instantiation
   Pclass get_class() { return Pclass(Pbase(tname->tp)->b_name->tp) ;}
-			      
+
   Ptempl_inst instantiate(bool reinstantiate = false) ;
   void print_pretty_name();		// virtual
   char *mangled_name(char *buffer);	// virtual
@@ -447,7 +447,7 @@ public:
   	Pname data_copy(Pdata,Pcons&);
 
   // special check for instantiations used in qualifiers for template function
-  // member declarations. 
+  // member declarations.
   bool check_qualifier(Plist formals) ;
   Pname get_parameter(char *s) ;
 } ;
@@ -462,19 +462,19 @@ extern int zdebug;
 
 class templ_classdef : public classdef {
 public:
-   	// a pointer to the instantiation; the instantiation 
-	// also points back to it via tname->cobj->name->class 
-   	Ptempl_inst inst; 
+   	// a pointer to the instantiation; the instantiation
+	// also points back to it via tname->cobj->name->class
+   	Ptempl_inst inst;
   	templ_classdef(Ptempl_inst i);
   	templ_classdef(Ptempl_inst i, TOK csu);
-  	Pname unparametrized_tname() {return inst->def->namep;} 
+  	Pname unparametrized_tname() {return inst->def->namep;}
 };
 
 class templ_fct : public fct {
 public:
   	Pfunct_inst inst; // pointer to the instantiation
   	templ_fct(Pfunct_inst i);
-  	Pname unparametrized_tname() {return inst->def->fn;} 
+  	Pname unparametrized_tname() {return inst->def->fn;}
 	void *operator new(size_t);
 	void operator delete(void*,size_t);
 	static Ptfct ptfct_free;

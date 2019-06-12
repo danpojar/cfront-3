@@ -1,6 +1,6 @@
 /*ident	"@(#)cls4:src/expand.c	1.25" */
 /*******************************************************************************
- 
+
 C++ source for the C++ Language System, Release 3.0.  This product
 is a new release of the original cfront developed in the computer
 science research center of AT&T Bell Laboratories.
@@ -66,8 +66,8 @@ static char* temp(char* vn, Pname fn)
 		}
 
 	        // append scope representation and trailing null
-	        *p++ = "abcdefghijlkmnop" [ ((int(Scope)>>4)&15) ];
-	        *p++ = "abcdefghijlkmnop" [ ((int(Scope)>>8)&15) ];
+	        *p++ = "abcdefghijlkmnop" [ ((long(Scope)>>4)&15) ];
+	        *p++ = "abcdefghijlkmnop" [ ((long(Scope)>>8)&15) ];
 		*p = '\0';
 //tmp error('d',"temp(%s,%n) -- scope %d -- returning %s",vn,fn,scope,s);
 		return s;
@@ -137,8 +137,8 @@ Pname dcl_local(Ptable scope, Pname an, Pname fn, bit tempflag = 0)
 		r = scope->insert(nx,0);
 //error('d',"%d %d %d %d",r->n_stclass,an->n_stclass,r->lex_level,an->lex_level);
 
-		if (r->tp->base==COBJ) 
-			inllist=new name_list(r,inllist); 
+		if (r->tp->base==COBJ)
+			inllist=new name_list(r,inllist);
 
 		r->n_stclass = an->n_stclass;
 		r->lex_level = an->lex_level;
@@ -181,7 +181,7 @@ st:
 	{
 		Pname nn = Pbase(t1)->b_name;
 
-		if (Pclass(nn->tp)->csu==UNION ) return 0; 
+		if (Pclass(nn->tp)->csu==UNION ) return 0;
 
 		if (t2->base==COBJ && nn->tp==Pbase(t2)->b_name->tp) return 0;
 
@@ -194,7 +194,7 @@ st:
 
 int makeCM( Ptype t )
 /* return 1 if the type is not a primitive type
- * this will cause the generation of (t,0) 
+ * this will cause the generation of (t,0)
  * note: ``t'' is guaranteed not to be 0
  */
 {
@@ -212,7 +212,7 @@ int makeCM( Ptype t )
 	case LLONG:
 	case EOBJ:
 		return 0;
-	default: 
+	default:
 		return 1;
 	}
 }
@@ -260,7 +260,7 @@ static int has_return(Pstmt sl)
 
 Pstmt stmt::expand()
 /*
-	copy the statements with the formal arguments replaced by ANAMES 
+	copy the statements with the formal arguments replaced by ANAMES
 
 	called once only per inline function
 	expand_tbl!=0 if the function should be transformed into an expression
@@ -293,10 +293,10 @@ Pstmt stmt::expand()
 //error('d',"block %n %k %d %d",n,base,memtbl->real_block == this,n->lex_level);
 				if (n->base!=NAME || n->tp==any_type || n->n_key==CLASS) continue;
 
-				if (base==BLOCK 
-				&& memtbl->real_block == this 
+				if (base==BLOCK
+				&& memtbl->real_block == this
 				&& n->lex_level < 2
-				//&& n->n_table == Pfct(expand_fn->tp)->body->memtbl 
+				//&& n->n_table == Pfct(expand_fn->tp)->body->memtbl
 				&& (n->string[0]!='_'	// promoted from called
 							// inlines
 					|| n->string[1]!='_'
@@ -364,7 +364,7 @@ DB(if(Edebug>=2){error('d',"stmt::expand() -- block");display_stmt(this);});
 			ret_seen = 1;
 			s_list = 0;
 
-			if (e == 0) 
+			if (e == 0)
 				ee = zero;
 			else {
 				ee = e->expand();
@@ -374,7 +374,7 @@ DB(if(Edebug>=2){error('d',"stmt::expand() -- block");display_stmt(this);});
 //display_expr(ee);
 				if (tt!=ee->tp && ck_cast(tt,ee->tp)) ee = new cast(tt,ee);
 			}
-	
+
 			Cstmt = ostmt;
 			return Pstmt(ee);
 
@@ -403,9 +403,9 @@ DB(if(Edebug>=2){error('d',"stmt::expand() -- block");display_stmt(this);});
 			ret_seen = 0;
 			ee = Pexpr(s->expand());
 			if(
-			    ee->tp->memptr() 
+			    ee->tp->memptr()
 			    ||
-			    ee->base==ASSIGN && 
+			    ee->base==ASSIGN &&
 			    ee->e1->tp && ee->e1->tp->base != PTR
 			)
 				ee = new expr(G_CM,ee,zero);
@@ -431,7 +431,7 @@ DB(if(Edebug>=2){error('d',"stmt::expand() -- block");display_stmt(this);});
 				qq->e2->tp = zero_type;
 			}
 #endif
-			int ret2 = ret_seen; 
+			int ret2 = ret_seen;
 			if (ret1+ret2 && s_list) {
 				error('s',"cannot expand inlineF%a with S after \"return\"",expand_fn);
 				ret_seen = 0;
@@ -565,7 +565,7 @@ Pexpr expr::expand()
 	switch (base) {
 	case NAME:
 		if ( expand_tbl
-		&&   Pname(this)->n_scope == FCT 
+		&&   Pname(this)->n_scope == FCT
 		&&   Pname(this)->lex_level > expand_fn->lex_level ) {
 			Pname n = Pname(this);
 			char* s = n->string;
@@ -750,7 +750,7 @@ bit expr::not_simple(int inflag)
 }
 
 extern void uninline(Pname fn);
-//extern Pname new_fct;	
+//extern Pname new_fct;
 //extern Pname del_fct;
 extern Pstmt del_list;
 extern Pstmt break_del_list;
@@ -850,7 +850,7 @@ Pexpr fct::expand(Pname fn, Ptable scope, Pexpr ll)
 	) {						// so don't expand
 		if (warning_opt) error('w',"cannot inline%n in thisE",fn);
 		// *** SBL: move def from template.h to cfront.h
-		extern Pfct current_fct_instantiation; 
+		extern Pfct current_fct_instantiation;
 		if (fct_base == INSTANTIATED)
 			current_fct_instantiation = this;
 		if (fn->n_addr_taken++==0) fn->dcl_print(0);
@@ -923,7 +923,7 @@ Pexpr fct::expand(Pname fn, Ptable scope, Pexpr ll)
 			if (ee && ee->e1 && (ee->e1->base == NAME) &&
 			       (! strcmp (ee->e1->string,"this"))) goto zxc;
 		}
-		else if (n->n_addr_taken || n->n_assigned_to) 
+		else if (n->n_addr_taken || n->n_assigned_to)
 			goto zxc;
 		else if (s=notsimple) {
 			if (/*n->n_used==0	// n_used not set for ``this''
@@ -937,7 +937,7 @@ Pexpr fct::expand(Pname fn, Ptable scope, Pexpr ll)
 				delete il->i_args;
 				delete il;
 				// *** SBL: move to cfront.h from template.h
-				extern Pfct current_fct_instantiation; 
+				extern Pfct current_fct_instantiation;
 				if (fct_base == INSTANTIATED)
 					current_fct_instantiation = this;
 				if (fn->n_addr_taken++==0) fn->dcl_print(0);
@@ -946,7 +946,7 @@ Pexpr fct::expand(Pname fn, Ptable scope, Pexpr ll)
 				return 0;
 			}
 //error('d',"zxc %n %t ee %d %t",n,n->tp,ee->base,ee->tp);
-//			if (ee && ee->tp && (ee->tp->base==EOBJ) && ansi_opt) 
+//			if (ee && ee->tp && (ee->tp->base==EOBJ) && ansi_opt)
 //				; // do nothing
 //			else {
 				Pname nn = dcl_local(scope,n,fn,1);
@@ -963,10 +963,10 @@ Pexpr fct::expand(Pname fn, Ptable scope, Pexpr ll)
 		il->i_args[i].arg = ee;
 		il->i_args[i].tp = n->tp;
 	}
-	
+
 	Ptable tbl = body->memtbl;
 	if (f_expr) {		// generate comma expression
-		
+
 		char loc_var = 0;
 
 		/* look for local variables needing declaration: */

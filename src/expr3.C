@@ -1,6 +1,6 @@
 /*ident	"@(#)cls4:src/expr3.c	1.38" */
 /*******************************************************************************
- 
+
 C++ source for the C++ Language System, Release 3.0.  This product
 is a new release of the original cfront developed in the computer
 science research center of AT&T Bell Laboratories.
@@ -29,6 +29,7 @@ static Bits bestMatch(const Block(Pname)&, int, Ptype);
 static Bits best_const(const Block(Pname)&, int, Ptype);
 static Pname breakTie(const Block(Pname)&, Bits&, Pexpr, int);
 static int pr_dominate(Ptype, Ptype);
+extern Pname has_templ_instance(Pname,Pexpr,bit);
 
 static int refd;// initialization routine called by ref_init, do not apply itor
 static int no_sti;
@@ -108,14 +109,14 @@ Pname make_tmp(char c, Ptype t, Ptable tbl)
 	}
 
 	TOK scop = ARG;
-	if (stat_init && dt) { 
-		tmpx->n_sto = STATIC; scop = ARGS; 
+	if (stat_init && dt) {
+		tmpx->n_sto = STATIC; scop = ARGS;
 	} else if (gtbl == tbl) {
 		tmpx->n_sto = STATIC;
 	}
 
 	// ARG[S]: no init; ARGS: static dtor
-	Pname tmp = tmpx->dcl(tbl,scop); 
+	Pname tmp = tmpx->dcl(tbl,scop);
 	delete tmpx;
 
 	// n_scope == ARGS sets static dtor in simpl2.c
@@ -143,7 +144,7 @@ Pexpr init_tmp(Pname tmp, Pexpr init, Ptable tbl)
 					init = init->e1;
 				else
 					init = new expr(G_CM,init,init->e1->address());
-					
+
 			}
 			if (ct->tp->base == OVERLOAD) ct = Pgen(ct->tp)->fct_list->f;	// first fct
 			tbl = 0;
@@ -177,7 +178,7 @@ int exact3(Pname nn, Ptype at)
 
 	switch (nt->base) {
 	case RPTR:
-		if (nt->base==RPTR && Pptr(nt)->typ->check(at,COERCE)==0) 
+		if (nt->base==RPTR && Pptr(nt)->typ->check(at,COERCE)==0)
 			return 1;
 		if (at==zero_type && Pptr(nt)->typ->is_ptr()==0) return 0;
 		if (nt->check(at,COERCE)) {
@@ -194,7 +195,7 @@ int exact3(Pname nn, Ptype at)
 		break;
 	default:
 		switch (at->base) {
-		default: 
+		default:
 			if (nt->check(at,COERCE)) return 0;
 			break;
 		case OVERLOAD:
@@ -211,7 +212,7 @@ int exact3(Pname nn, Ptype at)
 			}
 
 			if ( no_match ) return 0;
-		} 
+		}
 	}
 	return 1;
 }
@@ -250,7 +251,7 @@ int exact1(Pname nn, Ptype at)
 
 	if (nt->check(at,0)) {
 		// handle T <-> const T
-		if (const_problem && nt->base != PTR)  return 1;	
+		if (const_problem && nt->base != PTR)  return 1;
 
 		// reject ptmfs of different classes
 		if (rt && rt->memof || art && art->memof) return 0;
@@ -267,7 +268,7 @@ int exact1(Pname nn, Ptype at)
 			if (art == 0) art = at->is_ref();
 			if (art) {
 				if (art->typ->check(rt->typ,0)) {
-					if (const_problem && 
+					if (const_problem &&
 					    Pbase(art->typ)->b_const != 1)
 						return 1;
 				}
@@ -297,10 +298,10 @@ int exact2(Pname nn, Ptype at)
 		break;
 	case CHAR:
 	case SHORT:
-		at =	(Pbase(at)->b_unsigned && at->tsizeof()==SZ_INT) 
-			? 
-			uint_type 
-			: 
+		at =	(Pbase(at)->b_unsigned && at->tsizeof()==SZ_INT)
+			?
+			uint_type
+			:
 			int_type;
 		break;
 	case FLOAT:
@@ -316,7 +317,7 @@ static int ref_cast;
 int Nstd;
 
 bit can_coerce(Ptype t1, Ptype t2)
-/*	
+/*
 	return number of possible coercions of t2 into t1,
 	Ncoerce holds a coercion function (not constructor), if found
 */
@@ -332,7 +333,7 @@ bit can_coerce(Ptype t1, Ptype t2)
 	//t1 = t1->skiptypedefs();
 
 	if (t1->is_ref()) {
-		if (t1->check(t2->skiptypedefs()->addrof(),COERCE) == 0) 
+		if (t1->check(t2->skiptypedefs()->addrof(),COERCE) == 0)
 			return 1;
 
 		if (!ref_cast) {		// (T&): no coercions
@@ -341,10 +342,10 @@ bit can_coerce(Ptype t1, Ptype t2)
 			int bc;
 			if ( tt1->base != PTR && tt1->base != RPTR ) {
      				bc = Pbase(tt1)->b_const;
-     				Pbase(tt1)->b_const = 0; 
+     				Pbase(tt1)->b_const = 0;
 			}
 			int i = can_coerce(tt1,t2);
-			if ( tt1->base != PTR && tt1->base != RPTR ) 
+			if ( tt1->base != PTR && tt1->base != RPTR )
      				Pbase(tt1)->b_const = bc;
 			if (i) return i;
 			zz = 1;
@@ -370,7 +371,7 @@ bit can_coerce(Ptype t1, Ptype t2)
 		register Pfct f = ctor ? Pfct(ctor->tp) : 0;
 
 		if(f && f->base == FCT) {
-			if (f->nargs==1 
+			if (f->nargs==1
 			    ||
 			    f->nargs > 1 && f->argtype->n_list->n_initializer
 			) {
@@ -386,7 +387,7 @@ bit can_coerce(Ptype t1, Ptype t2)
 				Pname nn = gl->f;
 				Pfct ff = Pfct(nn->tp);
 
-				if (ff->nargs==1 
+				if (ff->nargs==1
 				    ||
 			    	    ff->nargs>1
 				    &&
@@ -404,7 +405,7 @@ bit can_coerce(Ptype t1, Ptype t2)
 		}
 	}
 
-	if (c2) {	
+	if (c2) {
 		const int REALLY_EXACT = 6;
 		Block(Pname) conv;
 		int found = 0;
@@ -588,7 +589,7 @@ Ptype expr::call_fct(Ptable tbl)
 			// or	p->a->b() => (p->a)->b()  => b(p->a)
 			// or	oo.a.b()  => (&oo.a)->b() => b(&oo.a)
 			// or	oo.a->b() => (oo.a)->b()  => b(oo.a)
-		{	
+		{
 			Pexpr r = e1;
 			Pexpr p = r->e1;
 			for (Pexpr m = r->mem; m->base==MDOT; m = r->mem) {
@@ -643,7 +644,7 @@ lll:
 
 	case ANY:
 		return any_type;
-	
+
 	case OVERLOAD:
 	{
 		Pgen g = Pgen(t1);
@@ -652,17 +653,17 @@ lll:
 		// look for an exact match
 		found = g->exactMatch(arg,const_obj);
 
-		// code for calls with template versions 
+		// code for calls with template versions
 		if(!found && arg && g->has_templ()) {
 			found = has_templ_instance(fn,arg);
 		}
 
-		// one argument in call: no need for intersect rule 
+		// one argument in call: no need for intersect rule
 		if (!found && arg && arg->e2 == 0) {
 			found = g->oneArgMatch(arg,const_obj);
 		}
 
-		// multiple arguments in call: potential need for 
+		// multiple arguments in call: potential need for
 		// intersect rule and simple rule
 		else if (!found && arg) {
 			found = g->multArgMatch(arg,const_obj);
@@ -685,7 +686,7 @@ lll:
                 f = Pfct(t1);
                 if (fn) {
                         if (fn->is_template_fct()) {
-                                Pname f_inst = has_templ_instance(fn,arg); 
+                                Pname f_inst = has_templ_instance(fn,arg);
                                 if (f_inst) {
                                         e1 = f_inst; fn = f_inst;
                                         t1 = f_inst->tp; f = Pfct(f_inst->tp);
@@ -838,7 +839,7 @@ lll:
 
 				switch (t1->base) {
 				case RPTR:
-				{	
+				{
 					Ptype pt = Pptr(t1)->typ;
 					if (pt->skiptypedefs()->base==VEC ) {
 					   if (pt->check(a->tp,IGNORE_CONST)) {
@@ -846,7 +847,7 @@ lll:
 						return any_type;
 					   };
 					}
-					if (pt->base != FCT 
+					if (pt->base != FCT
 					    ||
 					    pt->check(a->tp,0)
 					) {
@@ -869,7 +870,7 @@ lll:
 					else {
 						// defend against:
 						//	int f(X); ... X(X&);
-						Pname cln = Pbase(t1)->b_name;	
+						Pname cln = Pbase(t1)->b_name;
 						if (cln && Pclass(cln->tp)->has_itor()) {
 							// mark X(X&) arguments
 							nn->n_xref = 1;
@@ -1068,14 +1069,14 @@ rlab:
 	}
 
 	if (f->f_result) {		// f(args) => (f(&temp,args),temp)
-		Pname oldNtmp = Ntmp; 
+		Pname oldNtmp = Ntmp;
 		Ntmp = 0;  // set in make_tmp if tn has associated dtor
 		Pname tn = make_tmp('R',f->returns,tbl);
 
 		extern bit in_quest;
 		if (Ntmp) {
                 	if (Ntmp_refd && in_quest) {
-			 	tn->n_list = Ntmp_refd;	
+			 	tn->n_list = Ntmp_refd;
                         	Ntmp_refd = tn;
 			}
                 	else Ntmp_refd = tn;
@@ -1142,9 +1143,9 @@ Pexpr ref_init(Pptr p, Pexpr init, Ptable tbl)
 		    && fct_const==0) {
 			// not ``it''
 			if (init->base == ELIST) init = init->e1;
-			if (px->typ->tconst() == 0) 
+			if (px->typ->tconst() == 0)
 				if (cc->nof && in_return)
-					error("cannot return a reference to a non-constO from const member function %n",cc->nof); 
+					error("cannot return a reference to a non-constO from const member function %n",cc->nof);
 				else error("R to constO");
 			px->base = RPTR;
 			// if we have a const lvalue we can still pass its address
@@ -1159,7 +1160,7 @@ Pexpr ref_init(Pptr p, Pexpr init, Ptable tbl)
 			goto xxx;
 		}
 		px->base = RPTR;
-                if (init->lval(0)) {	// can pass the address							// no temporary needed 
+                if (init->lval(0)) {	// can pass the address							// no temporary needed
 			init->lval(ADDROF); // force output
 //error('d',"px %t init %t ",px,init->tp);
                         {  Pname name_in_deref =0;
@@ -1186,7 +1187,7 @@ Pexpr ref_init(Pptr p, Pexpr init, Ptable tbl)
 
 			      if (init->e1->tp) {
                               act_param = new expr (G_ADDROF, 0, init->e1);
-                              act_param->tp  = init->e1->tp->addrof(); 
+                              act_param->tp  = init->e1->tp->addrof();
 //error('d',"px %t act_param %t ",px,act_param->tp);
                               ret_exp = ptr_init(px, act_param, tbl);
 		  	      } else {
@@ -1222,10 +1223,10 @@ Pexpr ref_init(Pptr p, Pexpr init, Ptable tbl)
 			case STRING: case ZERO: case CCON:
 			case ICON: case FCON: case IVAL:
 			case NAME:
-				refd = 1; 
+				refd = 1;
 				break;
 			default:
-				refd = (init->e1 && init->e1->base == NAME && 
+				refd = (init->e1 && init->e1->base == NAME &&
 					init->e1->tp->base != RPTR &&
 					Pname(init->e1)->n_xref == 0) ? 2: 1;
 				break;
@@ -1251,11 +1252,11 @@ Pexpr ref_init(Pptr p, Pexpr init, Ptable tbl)
 			if ((it->tconst()==0 || vec_const)
 		    	    &&
 		    	    (fct_const==0 || p1->is_ptr()==0)
-			) 
+			)
 				break;
 		default:
 			if (p1 && p1->b_const==0) {
-		    	    if (tbl == gtbl || (strict_opt && !is_arg)) 
+		    	    if (tbl == gtbl || (strict_opt && !is_arg))
 				error("Ir for%snon-constR not an lvalue", strict_opt?"":" global ");
 		    	    else if(!is_arg)
 				error('w',"Ir for non-constR not an lvalue (anachronism)");
@@ -1274,7 +1275,7 @@ Pexpr ref_init(Pptr p, Pexpr init, Ptable tbl)
 		}
 
 		Pexpr x = try_to_coerce(p1,init,"reference",tbl);     // x==init
-		if (x==0) 
+		if (x==0)
 			x = try_to_coerce(px,init,"reference",tbl); // x&=init
 		if (x) {
 			init = x;
@@ -1302,7 +1303,7 @@ Pexpr ref_init(Pptr p, Pexpr init, Ptable tbl)
 		if (init->base != NAME) init->tp = any_type;
 		return init;
 	}
-	
+
 xxx:	/*
 		here comes the test of a ``fundamental theorem'':
 		a structure valued expression is
@@ -1344,9 +1345,9 @@ xxx:	/*
 	default:
 	def:
 	{
-// error('d',"def: init->tp %t p1 %t ",init->tp,p1);	
+// error('d',"def: init->tp %t p1 %t ",init->tp,p1);
 		if (p1 && p1->b_const==0) {
-			if (tbl == gtbl || (strict_opt && !is_arg)) 
+			if (tbl == gtbl || (strict_opt && !is_arg))
 				error("Ir for%snon-constR not an lvalue", strict_opt?"":" global ");
 			else if(!is_arg)
 				error('w',"Ir for non-constR not an lvalue (anachronism)");
@@ -1423,7 +1424,7 @@ Pexpr class_init(Pexpr nn, Ptype tt, Pexpr init, Ptable tbl)
 	if nn==0 make a temporary,
 	nn may not be a name
 */
-{	
+{
 	if (init == dummy) return 0;
 //error('d',"class_init %t with %t init %k refd %d",tt,init->tp,init->base,refd);
 	Pname c1 = tt->is_cl_obj();
@@ -1439,8 +1440,8 @@ Pexpr class_init(Pexpr nn, Ptype tt, Pexpr init, Ptable tbl)
 
 
 		if ((c1!=c2 && (c2 == 0 || same_class(cl,Pclass(c2->tp),1) == 0))
-		     || (refd==0 && cl->has_itor())) 
-		{ // really ought to make a temp if refd, 
+		     || (refd==0 && cl->has_itor()))
+		{ // really ought to make a temp if refd,
 		  // but ref_init can do that
 
 			int i = can_coerce(tt,init->tp);
@@ -1489,8 +1490,8 @@ Pexpr class_init(Pexpr nn, Ptype tt, Pexpr init, Ptable tbl)
 					break;
 				}
 				default:	// (temp=init,temp.coerce())
-				{	Pname tmp = make_tmp('U',init->tp,tbl); 
-					int x = refd;	
+				{	Pname tmp = make_tmp('U',init->tp,tbl);
+					int x = refd;
 					refd = 0;	// ??
 					Pexpr ass = init_tmp(tmp,init,tbl);
 					refd = x;
@@ -1501,7 +1502,7 @@ Pexpr class_init(Pexpr nn, Ptype tt, Pexpr init, Ptable tbl)
 					init = new expr(CM,ass,c);
 					init->tp = c->tp;
 					if (refd) {	// &f() => (t=f(), &t)
-						Pname tmp2 = make_tmp('L',c->tp,tbl); 
+						Pname tmp2 = make_tmp('L',c->tp,tbl);
 						ass = init_tmp(tmp2,init,tbl);
 						init = new expr(G_CM,ass,tmp2);
 					}
@@ -1532,7 +1533,7 @@ Pexpr class_init(Pexpr nn, Ptype tt, Pexpr init, Ptable tbl)
 extern int bound;	// fudge for bound pointers to functions
 
 Pexpr expr::docast(Ptable tbl)
-{	
+{
 	// check cast against value, INCOMPLETE
 
 //error('d',"docast %d %t %k",this,tp2,e1->base);
@@ -1561,7 +1562,7 @@ Pexpr expr::docast(Ptable tbl)
 	nm:
 		if (Pname(ee)->n_qualifier) pmf = 1;
 		break;
-		
+
 	case REF:
 	rf:
 		if (ee->e1->base == THIS) bound = 1;
@@ -1581,7 +1582,7 @@ Pexpr expr::docast(Ptable tbl)
 	tt->dcl(tbl);
 
 	tt = tt->skiptypedefs();
-	
+
 //error('d',"e1 %k etp %t tt %t",e1->base,etp,tt);
 	bit isptm = 0;
 	switch (etp->base) {
@@ -1813,7 +1814,7 @@ Pexpr expr::docast(Ptable tbl)
 			if (noconst) error('c'," (no usable const conversion)\n");
 			else error('c',"\n");
 			break;
-		}	
+		}
 		break;
 
 	case FLOAT:
@@ -1833,7 +1834,7 @@ Pexpr expr::docast(Ptable tbl)
 		default:
 			error("cannot cast ``%t '' to ``%t''",etp,tt);
 			break;
-		}	
+		}
 		break;
 
 	case FCT:
@@ -1866,7 +1867,7 @@ Pexpr expr::docast(Ptable tbl)
 
 		if (Pptr(tt)->memof==0 && b == 0 ) {
 			Pexpr y;
-			if((e1->base == G_CAST || e1->base == CAST) && 
+			if((e1->base == G_CAST || e1->base == CAST) &&
 			    e1->e1->base == ILIST) {
 				e1 = e1->e1;
 				y = e1->e2;
@@ -1904,7 +1905,7 @@ Pexpr expr::dovalue(Ptable tbl)
 	Pname cn;
 
 // error('d',"value %d %t e1 %d e2 %d",tt,tt,e1,e2);
-	
+
 	tt->dcl(tbl);
 
 	tt = tt->skiptypedefs();
@@ -1915,7 +1916,7 @@ Pexpr expr::dovalue(Ptable tbl)
 		if (e1 == 0) {
 			//error("value missing in conversion to%t",tt);
 			e1 = zero;
-		} else { // convert elist to expr 
+		} else { // convert elist to expr
 			if ( e1->e2 == 0 ) {
 				e1 = e1->e1;
                                 if (e1->base==NAME && e1->permanent == 0)
@@ -2049,7 +2050,7 @@ mk_ctor_call: // beats duplicating the code
 		extern bit in_quest;
 		if (Ntmp && in_quest) {
                 	if (Ntmp_refd) {
-			 	n->n_list = Ntmp_refd;	
+			 	n->n_list = Ntmp_refd;
                         	Ntmp_refd = n;
 			}
                 	else Ntmp_refd = n;
@@ -2084,7 +2085,7 @@ mk_ctor_call: // beats duplicating the code
 	}
 }
 
-Pname 
+Pname
 gen::exactMatch(Pexpr arg, int constObj)
 /*
 	look through this gen for an exact match with arg
@@ -2135,8 +2136,8 @@ gen::exactMatch(Pexpr arg, int constObj)
 	return breakTie(funVec,bestOnes,arg,constObj);
 }
 
-Pname 
-gen::oneArgMatch(Pexpr aarg, int constObj) 
+Pname
+gen::oneArgMatch(Pexpr aarg, int constObj)
 /*
 	for a call with one argument:
 	look through this gen for the best match for arg
@@ -2159,14 +2160,14 @@ gen::oneArgMatch(Pexpr aarg, int constObj)
 
 		if (nn->is_template_fct()) continue;
 
-		if(constObj && fn->n_oper!=CTOR && 
+		if(constObj && fn->n_oper!=CTOR &&
 		    !ft->f_const && !ft->f_static) {
 			non_const++;
 			continue;
 		}
 		if (!nnargs && ft->nargs_known != ELLIPSIS)
 			continue;
-		if (nnargs && nnargs->n_list && !nnargs->n_list->n_initializer) 
+		if (nnargs && nnargs->n_list && !nnargs->n_list->n_initializer)
 			continue;
 		ArgVec.reserve(numFunc+1);
 		funVec.reserve(numFunc+1);
@@ -2185,7 +2186,7 @@ gen::oneArgMatch(Pexpr aarg, int constObj)
 	return breakTie(funVec,bestOnes,aarg,constObj);
 }
 
-Pname 
+Pname
 gen::multArgMatch(Pexpr arg, int constObj)
 /*
 	for a call with multiple arguments:
@@ -2224,7 +2225,7 @@ gen::multArgMatch(Pexpr arg, int constObj)
 			intFun[ai].reserve(numFunc+1);
 			intFun[ai][numFunc] = x;
 			ai++;
-		} 
+		}
 
 		// extend ellipsis arguments
 		if(tf->nargs_known == ELLIPSIS) {
@@ -2243,7 +2244,7 @@ gen::multArgMatch(Pexpr arg, int constObj)
 	if(numFunc == 1) return funVec[0];
 
 	// more matchable functions: need intersect rule
-	if(numFunc > 1) {  
+	if(numFunc > 1) {
 
 		Bits bestFuncs = intersectRule(intFun,numFunc,arg);
 
@@ -2262,7 +2263,7 @@ gen::multArgMatch(Pexpr arg, int constObj)
 
 		    case 1:	// one element in intersection
 		    		// before or after breakTie
-			if (miFlag==1 && numFunc > 2) {  
+			if (miFlag==1 && numFunc > 2) {
 				// suspect: need simple rule
 				for(int K = 0; K < numFunc; K++) {
 					if(K == sigbit) continue;
@@ -2321,7 +2322,7 @@ Bits bestMatch(const Block(Pname)& AV, int nav, Ptype at)
 		Pname aa = AV[i];
 
 		if(aa == 0) continue;
-		
+
 		if(aa == (Pname)ELLIPSIS) {
 			rate[i] = ELLIP;
 			continue;
@@ -2367,7 +2368,7 @@ Bits bestMatch(const Block(Pname)& AV, int nav, Ptype at)
 	// break ties for STD's involving inheritance
 	if (max == STD ) {
 		if(at->is_ptr_or_ref()) at = Pptr(at)->typ;
-		if (!at->is_cl_obj()) return result;  
+		if (!at->is_cl_obj()) return result;
 
 		Bits tempBits = result;
 		tempBits.reset(tempBits.signif() - 1);
@@ -2486,8 +2487,8 @@ Bits intersectRule(const Block(BlockPname)& intFun, int numFunc, Pexpr arg)
 Pname breakTie(const Block(Pname)& FV,Bits& bestOnes,Pexpr arg,int cO)
 /*
 	all functions in Block are equal after the intersect rule
-	use a mini-intersect rule on the array to see if one dominates 
-	all others when trivial conversions involving const are 
+	use a mini-intersect rule on the array to see if one dominates
+	all others when trivial conversions involving const are
 	considered.
 
 	if so, return it;
@@ -2550,7 +2551,7 @@ Pname breakTie(const Block(Pname)& FV,Bits& bestOnes,Pexpr arg,int cO)
 		fmError(1,FV,arg,cO);
 		miFlag = 0;
 	}
-	else  bestOnes = result; 
+	else  bestOnes = result;
 
 	return FV[bestOnes.signif() - 1];
 }
@@ -2559,7 +2560,7 @@ Bits best_const(const Block(Pname)& CONV, int nfound, Ptype at)
 {
 	Bits zeroBits(0,nfound);
 	Bits result = ~zeroBits;
-	
+
 	Bits tempBits = ~zeroBits;
 	int sigbit = tempBits.signif() - 1;
 	tempBits.reset(sigbit);
@@ -2625,7 +2626,7 @@ Bits best_const(const Block(Pname)& CONV, int nfound, Ptype at)
 
 void fmError(int errorKind, const Block(Pname)& FV, Pexpr arg, bit co)
 {
-	Pname fn = FV[0]->tp->base==OVERLOAD ? 
+	Pname fn = FV[0]->tp->base==OVERLOAD ?
 			Pgen(FV[0]->tp)->fct_list->f : FV[0];
 
 	switch (errorKind) {
@@ -2642,7 +2643,7 @@ void fmError(int errorKind, const Block(Pname)& FV, Pexpr arg, bit co)
 	Pclass tmp = fn->get_fct()->memof;
 
 	if (tmp) error('c',"%s %t* -> ",co?"const":"",tmp);
-	if(fn->n_oper && fn->n_oper!=CTOR) 
+	if(fn->n_oper && fn->n_oper!=CTOR)
 		error('c',"operator %s(",keys[fn->n_oper]);
 	else if(fn->n_oper==CTOR) {
 		error('c',"%t::%t(",tmp,tmp);

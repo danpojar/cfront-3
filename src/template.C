@@ -1,6 +1,6 @@
 /*ident	"@(#)cls4:src/template.c	1.72" */
 /*******************************************************************************
- 
+
 C++ source for the C++ Language System, Release 3.0.  This product
 is a new release of the original cfront developed in the computer
 science research center of AT&T Bell Laboratories.
@@ -22,14 +22,14 @@ any actual or intended publication of such source code.
 * template.c
 *
 * TBD
-* 
-* 1) The template copying process could probably be speeded up 
-* substantially, by only placing "graph-like" nodes in the hash 
-* table. The current implementation plays it safe, and places 
+*
+* 1) The template copying process could probably be speeded up
+* substantially, by only placing "graph-like" nodes in the hash
+* table. The current implementation plays it safe, and places
 * all nodes in the hash table.
-* 			
+*
 * 2) remove `$' in lex.c
-* 							
+*
 * 3) Add something to lalex to handle x<y<int>>.  Currently parsed
 * as a right shift rather than nested template instance.
 *********************************************************************/
@@ -59,27 +59,27 @@ const int MAX_INST_DEPTH = 16; // maximum instantiations at one time
 
 // static data member definitions
 Pfunt templ_compilation::f_list=0;
-Pbase_inst basic_inst::head=0;      
+Pbase_inst basic_inst::head=0;
 Ptempl templ_compilation::list=0;
 Pcons templ_compilation::last_cons=0;
 Pcons templ_compilation::last_friend_cons=0;
-Pcons templ_compilation::templ_refs=0; 
-Pcons templ_compilation::friend_templ_refs=0; 
+Pcons templ_compilation::templ_refs=0;
+Pcons templ_compilation::friend_templ_refs=0;
 Ptstate templ_compilation::save_templ=0;
-Ptempl_base templ_compilation::parsed_template=0; 
+Ptempl_base templ_compilation::parsed_template=0;
 Pfunt templ_compilation::f_owner=0;
-Ptempl templ_compilation::owner=0;  
+Ptempl templ_compilation::owner=0;
 Plist templ_compilation::param_end=0;
 Plist templ_compilation::params=0;
 Pexpr templ_compilation::actuals=0;
 bool templ_compilation::formals_in_progress=false;
 
-// The canonical template compilation instance. 
+// The canonical template compilation instance.
 templ_compilation *templp;
 Ptable templ_compilation::templates=0;
 
 // Save and restore global state around a template instantiation
-void 
+void
 state::save() {
   	Cdcl = ::Cdcl;
   	Cstmt = ::Cstmt;
@@ -92,12 +92,12 @@ state::save() {
   	curr_block = ::curr_block;
   	curr_switch = ::curr_switch;
 
-  	bound = ::bound ;   
+  	bound = ::bound ;
   	inline_restr = ::inline_restr;
   	last_line = ::last_line;
 }
 
-void 
+void
 state::restore() {
   	::Cdcl = Cdcl;
   	::Cstmt = Cstmt;
@@ -110,12 +110,12 @@ state::restore() {
   	::curr_block = curr_block;
   	::curr_switch = curr_switch;
 
-  	::bound = bound;   
+  	::bound = bound;
   	::inline_restr = inline_restr;
   	::last_line = last_line;
 }
 
-void 
+void
 state::init() {
   	::bound = 0;
   	::inline_restr = 0;
@@ -123,21 +123,21 @@ state::init() {
 }
 
 #if 0
-bit 
-basetype::parametrized_class() { 
-    	return ((base == COBJ) && 
+bit
+basetype::parametrized_class() {
+    	return ((base == COBJ) &&
 		Ptclass(Pbase(this)->b_name->tp)->class_base==UNINSTANTIATED);
 }
 
-bit 
-classdef::parametrized_class() { 
+bit
+classdef::parametrized_class() {
 	return (class_base == UNINSTANTIATED);
 }
 #endif
 
 Templ_type
 get_class_base(Pbase b) {
-	if (b->base != COBJ) 
+	if (b->base != COBJ)
 		error('i',"::get_class_base: badAT(%k) cobjX",b->base);
   	return Ptclass(Pbase(b)->b_name->tp)->class_base ;
 }
@@ -149,7 +149,7 @@ get_templ_base(Pbase b) {
         return Pclass(Pbase(b)->b_name->tp)->templ_base;
 }
 
-Ptclass 
+Ptclass
 get_template_class(Pbase b) {
 	Templ_type t = get_class_base(b) ;
   	if (! ((t==INSTANTIATED) || (t==UNINSTANTIATED)))
@@ -158,14 +158,14 @@ get_template_class(Pbase b) {
 }
 
 #if 0
-Ptempl_inst 
+Ptempl_inst
 get_templ_inst(Pbase b) {
 	return (get_template_class(b))->inst;
 }
 #endif
 
-static bit 
-same_class_templ(Pclass c1, Pclass c2) 
+static bit
+same_class_templ(Pclass c1, Pclass c2)
 {
 // error('d',"same_class_templ: c1 %s c2 %s c1 %d c2 %d", c1->string, c2->string, c1->class_base, c2->class_base);
 	if (c1 == c2) return true;
@@ -183,15 +183,15 @@ same_class_templ(Pclass c1, Pclass c2)
   	return false;
 }
 
-bit 
-classdef::same_class(Pclass pc,int access)  
-/* Predicate to determine whether two classes are indeed the same. 
- * cfront normally relies on pointer identity, however, this test 
+bit
+classdef::same_class(Pclass pc,int access)
+/* Predicate to determine whether two classes are indeed the same.
+ * cfront normally relies on pointer identity, however, this test
  * is insufficient when parametrized class instantiationa are involved,
- * since there are potentially many instances of a COBJ and CLASS 
+ * since there are potentially many instances of a COBJ and CLASS
  * for a given instantiation.
  *
- * it would seem reasonable to always have the occurrence of 
+ * it would seem reasonable to always have the occurrence of
  * an UNINSTANTIATED and INSTANTIATED instance be checked;
  * this occurs, for example, in
  *	template<class T> class Tag{};
@@ -232,7 +232,7 @@ classdef::same_class(Pclass pc,int access)
 		}
 		return false;
 	}
-		
+
         Templ_type this_base = this->class_base;
         Templ_type pc_base = pc->class_base;
 
@@ -247,26 +247,26 @@ classdef::same_class(Pclass pc,int access)
       		(Ptclass(this)->inst->def_basetype()->b_name->tp==pc))
     			return true;
 
-  	// Check whether the templates were determined to be 
-	// identical after instantiation. 
+  	// Check whether the templates were determined to be
+	// identical after instantiation.
   	if ((pc_base == INSTANTIATED) &&
       		(this_base == INSTANTIATED) &&
 		(strcmp(pc->string,string)==0 ||
       		(Ptclass(this)->inst->same(Ptclass(pc)->inst))))
     			return true;
-       
+
         if (access == 0) return false;
 
         // change to treatment of friend instantiation
         // now makes this a possibility
-        if (this_base == INSTANTIATED && 
+        if (this_base == INSTANTIATED &&
 	    pc_base == UNINSTANTIATED) {
 		char *str = Ptclass(this)->inst->def->namep->string;
 // error('d',"same_class: this: %s pc: %s", str, pc->string);
 		return (strcmp(str,pc->string)==0);
         }
 
-        if (pc_base == INSTANTIATED && 
+        if (pc_base == INSTANTIATED &&
 	    this_base == UNINSTANTIATED) {
 		char *str = Ptclass(pc)->inst->def->namep->string;
 // error('d',"same_class: pc: %s this: %s", str, string);
@@ -275,17 +275,17 @@ classdef::same_class(Pclass pc,int access)
   	return false;
 }
 
-bool 
-templ_inst::same(Ptempl_inst t) 
-/* determine whether two instantiations are identical; 
+bool
+templ_inst::same(Ptempl_inst t)
+/* determine whether two instantiations are identical;
  * test asumes that the templates have been instantiated. */
 {
-	return ((forward && (forward==t->forward)) 
-		|| (forward == t) 
+	return ((forward && (forward==t->forward))
+		|| (forward == t)
 		|| (t->forward == this)) ? true : false;
 }
 
-Ptempl 
+Ptempl
 templ_compilation::is_template(Pname p)
 /* Determine whether the name refers to the canonical
  * template class during syntax analysis */
@@ -295,7 +295,7 @@ templ_compilation::is_template(Pname p)
         {
                 Templ_type tc = get_class_base(Pbase(p->tp));
                 Templ_type sc = get_templ_base(Pbase(p->tp));
-                
+
                 if (tc == CL_TEMPLATE ||
                    (tc == INSTANTIATED && sc == CL_TEMPLATE)) {
                         Pname n = templates->look(p->string,0);
@@ -306,42 +306,42 @@ templ_compilation::is_template(Pname p)
         return 0;
 }
 
-Ptempl 
-templ_compilation::is_template(char *s) 
-{ 
+Ptempl
+templ_compilation::is_template(char *s)
+{
 // error('d',"is_template(char *%s)",s );
 	Pname n = templates->look(s,0);
 	return (n ? Ptempl(n->tp) : 0);
 }
 
-Pfunt 
-templ_compilation::is_template(char *s, TOK t) 
-{ 
+Pfunt
+templ_compilation::is_template(char *s, TOK t)
+{
 // error('d',"is_template(char *%s, %k)",s,t );
 	Pname n = templates->look(s,t);
 	return (n ? Pfunt(n->tp) : 0);
 }
 
-void 
-templ_compilation::start() 
-/* Set up the environment for parsing a template. 
- * This involves setting up a new nesting level into 
+void
+templ_compilation::start()
+/* Set up the environment for parsing a template.
+ * This involves setting up a new nesting level into
  * which the "type type" template parameters can be
- * entered so that the lexer can find them as TNAMEs. 
+ * entered so that the lexer can find them as TNAMEs.
  * templ_compilation::collect adds new types.
  */
-{ 
+{
 	templp->in_progress = true ;
-  	params = param_end = 0; 
+  	params = param_end = 0;
 	owner = 0; f_owner = 0;
 	parsed_template = 0;
 	// has_expr_formals = 0;
-  	// SYM modified_tn = 0;  
+  	// SYM modified_tn = 0;
 }
 
-void 
+void
 templ_compilation::collect(TOK parm_type, Pname n)
-/* Collect each parameter as it is parsed, adding 
+/* Collect each parameter as it is parsed, adding
  * it to the list of parms. Validate each parameter */
 {
 // ::error('d',"templ_compilation::collect(%k,%n)",parm_type,n);
@@ -349,14 +349,14 @@ templ_compilation::collect(TOK parm_type, Pname n)
 	switch (parm_type) {
 	case STRUCT:
   	case CLASS:
-    		/* A "type type" parameter ... 
-		 * tp: ``any_type'', a wildcard match 
+    		/* A "type type" parameter ...
+		 * tp: ``any_type'', a wildcard match
 		 * tdef: base==TNAME, inserts in ktbl, sets modified_tn
-		 * lex_level: +1, so restore() can HIDE it after 
+		 * lex_level: +1, so restore() can HIDE it after
 		*/
-    		n->tp = ::any_type; 
-    		n = n->tdef(); 
-    		n->lex_level = bl_level+1; 
+    		n->tp = ::any_type;
+    		n = n->tdef();
+    		n->lex_level = bl_level+1;
     		n->n_template_arg = template_type_formal;
     		break;
   	default:
@@ -366,7 +366,7 @@ templ_compilation::collect(TOK parm_type, Pname n)
   	append_parameter(n);
 }
 
-void 
+void
 templ_compilation::append_parameter(Pname n)
 { // append the "non-type" parameter to the end of the list
   // ::error('d',"templ_compilation::append(%n)",n);
@@ -378,13 +378,13 @@ templ_compilation::append_parameter(Pname n)
   	PERM(n); PERM(n->tp);
 }
 
-void 
-templ_compilation::collect(Pname n) 
-/* Collect non "type type" parameters. 
+void
+templ_compilation::collect(Pname n)
+/* Collect non "type type" parameters.
  * tp indicates type of the formal parameter */
 {
 // ::error('d',"templ_compilation::collect(%n)",n);
-  	// grammar should be sufficient to protect against undesirable 
+  	// grammar should be sufficient to protect against undesirable
 	// types. Any additional checks go here.
   	n->n_template_arg = template_expr_formal;
 	extern int must_be_friend;
@@ -392,10 +392,10 @@ templ_compilation::collect(Pname n)
         	bound_expr_tbl->insert(n,0);
   	append_parameter(n) ;
 }
-  
-static void 
-check_non_type_formal(Pname n) 
-{ // validate the type for a non-type formal 
+
+static void
+check_non_type_formal(Pname n)
+{ // validate the type for a non-type formal
 // error('d',"check_non_type_formal: %n %k", n, n->tp->base);
 
 	Ptype tp = n->tp->skiptypedefs();
@@ -405,7 +405,7 @@ check_non_type_formal(Pname n)
   		case FLOAT:
   		case DOUBLE:
 		case LDOUBLE:
-		    if (tp->base==LDOUBLE && ansi_opt==0) 
+		    if (tp->base==LDOUBLE && ansi_opt==0)
 			error('w',"long double supported under ``+a1'' option only, generating ``double%n''",n);
 		    error('s',"ZE ofT float, double, or long double");
 		    return;
@@ -431,11 +431,11 @@ check_non_type_formal(Pname n)
       			if (bad_base)
 				error ("bad %k declarator forY formal %n", bad_base,n);
 			goto hack;
-      
+
     		}
   		case PTR:
-    		{ 
-			if (tp != n->tp) { 
+    		{
+			if (tp != n->tp) {
 		hack:
       			    Pbase b = new basetype(0,0);
       			    *b= *Pbase(n->tp);
@@ -460,12 +460,12 @@ check_non_type_formal(Pname n)
   	return;
 }
 
-void 
+void
 templ_compilation::enter_parameters()
-/* The template parameters, if any, have been parsed. 
- * Member function templates may choose to default their 
+/* The template parameters, if any, have been parsed.
+ * Member function templates may choose to default their
  *     template arguments to the class arguments -- if so,
- *     make the defaulting happen 
+ *     make the defaulting happen
  */
 {
 	for (Plist list = params; list; list = list->l) {
@@ -485,19 +485,19 @@ templ_compilation::enter_parameters()
       				error ('i', "bad template formal" ) ;
     		}
   	}
-  	// SYM -- tn stuff no longer needed 
+  	// SYM -- tn stuff no longer needed
   	// param_tn = modified_tn ;
   	// modified_tn = 0 ;
 }
 
-void 
-templ::resolve_forward_decl(Plist params, Pclass c) 
-/* Resolve the forward declaration of a template to its 
- * true definition. The template and class type data 
- * structures must be reused, since there may be 
+void
+templ::resolve_forward_decl(Plist params, Pclass c)
+/* Resolve the forward declaration of a template to its
+ * true definition. The template and class type data
+ * structures must be reused, since there may be
  * outstanding references to them. */
 {
-  	check_formals(params); 
+  	check_formals(params);
   	formals = params;
   	defined = true;
   	members = c->mem_list;
@@ -505,7 +505,7 @@ templ::resolve_forward_decl(Plist params, Pclass c)
 
 static bit reinstat = 0;
 /* 3.1/4.0: merge there two */
-void 
+void
 templ::instantiate_forward_decl() {
 	for (Ptempl_inst i = insts ; i ; i = i->next)
     		if (Ptclass(Pbase(i->tname->tp)->b_name->tp)->class_base ==
@@ -517,7 +517,7 @@ templ::instantiate_forward_decl() {
       		}
 }
 
-void 
+void
 function_template::instantiate_forward_decl() {
 	for (Pfunct_inst i = insts ; i ; i = i->next)
     		if (Ptfct(i->tname->tp)->fct_base == INSTANTIATED)
@@ -530,31 +530,31 @@ function_template::instantiate_forward_decl() {
 // template arguments in name, ie.
 // template <class P, class Q, ..> c<P,Q,..>::member_function() {}
 // match it's Ps and Qs.
-bool 
+bool
 templ_inst::check_qualifier(Plist formals)
 {
   Pexpr actual = actuals ;
   for (Plist formal = formals ; formal && actual ; formal = formal->l,
        actual = actual->e2)
-    
+
     switch (formal->f->n_template_arg) {
-      
+
     case template_type_formal:
       { Pbase b = Pbase(actual->e1->tp) ;
-	
+
 	if (! ((b->base == TYPE) &&
 	       (b->b_name->base == TNAME) &&
 	       (strcmp (Pname(b->b_name)->string, formal->f->string) == 0)))
 	  return false ;
 	break ;
       }
-      
+
     case template_expr_formal:
       if (! ((actual->e1->base == NAME) &&
 	     (strcmp(Pname(actual->e1)->string, formal->f->string) == 0)))
 	return false ;
       break ;
-      
+
 	default:
       		error ('i',"bad template formal") ;
     }
@@ -562,9 +562,9 @@ templ_inst::check_qualifier(Plist formals)
   return true ;
 }
 
-extern int add_first; 
-void 
-introduce_global_name( Pname ft ) 
+extern int add_first;
+void
+introduce_global_name( Pname ft )
 {
 // error( 'd', "introduce_global(%n)", ft );
 	Pname n = gtbl->look(ft->string,0);
@@ -580,7 +580,7 @@ introduce_global_name( Pname ft )
 	else {
 // error( 'd', "introduce_global(%n) n: %n %t", ft, n, n->tp );
 		switch( n->tp->base ) {
-		default: 
+		default:
 			error("YF%n renamed object ofT%t",ft,n->tp);
 			break;
 		case OVERLOAD: {
@@ -605,16 +605,16 @@ introduce_global_name( Pname ft )
 	}
 }
 
-void 
-templ_compilation::introduce_class_templ(Pname namep) 
-/* make the class template visible when compiling the 
- *      template class definition, 
+void
+templ_compilation::introduce_class_templ(Pname namep)
+/* make the class template visible when compiling the
+ *      template class definition,
  * so that it can be referenced while compiling the class body.  */
 {
 // error('d',"introduce_class_templ: %n", namep );
 	/* this check is because introduce_call_templ is invoked in two places:
  	 * st_class() in norm.c for class definition, and templ_compilation::end()
- 	 * call at end() is always for a forward declaration 
+ 	 * call at end() is always for a forward declaration
 	*/
   	owner = is_template(namep);
   	if (!owner){
@@ -627,11 +627,11 @@ templ_compilation::introduce_class_templ(Pname namep)
     		lookup_name->tp = Ptype(owner);  // lie, to permit use of the table
   	}
 }
-			    
-void 
-templ_compilation::introduce_funct_templ(Pname namep) { 
-/* make the function template visible when compiling the 
- *      template function definition, 
+
+void
+templ_compilation::introduce_funct_templ(Pname namep) {
+/* make the function template visible when compiling the
+ *      template function definition,
  * so that it can be referenced while compiling the function body.
  */
 // error('d',"introduce_funct_templ: %n", namep );
@@ -647,14 +647,14 @@ templ_compilation::introduce_funct_templ(Pname namep) {
 	f_owner = t;
 	introduce_global_name(namep);
 }
-			    
+
 static int
 has_formal_type(Ptclass pt_cl, Plist list)
-{	
+{
 // error('d',"has_formal_type: %s", pt_cl->string);
 	int has_formal = 0;
-	for (Pexpr formals = pt_cl->inst->actuals; 
-		formals; formals=formals->e2) 
+	for (Pexpr formals = pt_cl->inst->actuals;
+		formals; formals=formals->e2)
 	{
 		Pexpr fe = formals->e1;
 		if (fe->base != NAME || !fe->tp || fe->tp->base != TYPE) continue;
@@ -671,13 +671,13 @@ static Pname Tmpl;
 
 static int
 has_formal_type(Pname nn, Plist list)
-{	
+{
 // error('d',"has_formal_type: %n %t", nn, nn->tp);
 	Pname bn;
 	Ptype t, nt = nn->tp;
 
-	while(t=nt->is_ptr()) nt = Pptr(t)->typ; 
-	while(t=nt->is_ref()) nt = Pptr(t)->typ; 
+	while(t=nt->is_ptr()) nt = Pptr(t)->typ;
+	while(t=nt->is_ref()) nt = Pptr(t)->typ;
 
 	if(nt->base != TYPE) return 0;
 	while (nt->base == TYPE) {
@@ -687,7 +687,7 @@ has_formal_type(Pname nn, Plist list)
 
 	if (nt->base == COBJ) { // declaration:  X<T,...>
 		Pclass c1 = nt->classtype();
-		if (c1->is_templ_instance()) 
+		if (c1->is_templ_instance())
 		   	return has_formal_type(Ptclass(c1),list);
 
 		// encapsulate later ...
@@ -710,8 +710,8 @@ static bit hbf = 0;
 
 void
 handle_bound_friend(Ptempl_base pb, Pname fn)
-{ /* point of this is to extrapolate the template function 
-   * declaration implicit within a declaration such as  
+{ /* point of this is to extrapolate the template function
+   * declaration implicit within a declaration such as
    *	friend min(X<T>,X<T>);
    */
 // error('d',"handle_bound_friend (%n %n)", Ptempl(pb)->namep, fn);
@@ -720,7 +720,7 @@ handle_bound_friend(Ptempl_base pb, Pname fn)
 	Pfct f = fn->fct_type();
 	if (f->body) return; // no need to extrapolate
 
-	struct bleh { Pname n; int used; }; 
+	struct bleh { Pname n; int used; };
 	bleh *pbleh = new bleh[formal_cnt];
 
         for (formals = pb->get_formals(); formals; formals=formals->l) {
@@ -729,9 +729,9 @@ handle_bound_friend(Ptempl_base pb, Pname fn)
 
 	int has_formal = 0;
 
-	for (Pname n = f->argtype; n; n=n->n_list) 
+	for (Pname n = f->argtype; n; n=n->n_list)
 		// build up f_list of formals in signature
-		has_formal += has_formal_type(n,f_list); 
+		has_formal += has_formal_type(n,f_list);
 
 	if (!has_formal) return;
 
@@ -742,10 +742,10 @@ handle_bound_friend(Ptempl_base pb, Pname fn)
 		// pb is formal argument to function: all formals used
 // error('d',"has_formal == -1, %n == %n",Tmpl,Ptempl(pb)->namep);
 	}
-	else 
+	else
         for (formals=f_list->l; formals; formals=formals->l) {
 		Pname n = formals->f;
-		if (!n) break; 
+		if (!n) break;
                 for (i = 0; i < formal_cnt; ++i )
 		    if (strcmp(n->string,pbleh[i].n->string)==0) {
 			pbleh[i].used++;
@@ -755,7 +755,7 @@ handle_bound_friend(Ptempl_base pb, Pname fn)
         }
 
 	templp->save_templ = new templ_state;
-  	templp->params = templp->param_end = 0;  
+  	templp->params = templp->param_end = 0;
 	for (i = 0; i < formal_cnt; ++i ) {
     		if (pbleh[i].used == 0 && has_formal != -1) continue;
     		templp->append_parameter(pbleh[i].n);
@@ -797,7 +797,7 @@ void check_templ_funct(Pname fn)
 	if (f->nargs_known != 1)
 		 error('s',"ellipsis (...) inA list ofYF%n",fn);
 
-        if ( fn->n_oper ) 
+        if ( fn->n_oper )
         {
 	    switch (f->nargs) {
 		case 1: case 2: break;
@@ -805,7 +805,7 @@ void check_templ_funct(Pname fn)
 			if (fn->n_oper!=NEW)
 				error("FY%n must take 1 or 2As",fn);
 	    }
-	
+
 	    switch (fn->n_oper) {
 	    case CALL:
 	    case DEREF:
@@ -815,62 +815,62 @@ void check_templ_funct(Pname fn)
 		return;
 	    case DELETE:
 		error("::operator %s may not be aYF",keys[fn->n_oper]);
-		return;	
+		return;
 	    default:
 		fn->check_oper(0);
 		break;
 	    }
 	}
-	
+
 	if (strcmp("main",fn->string)==0)
 		error("main() may not be aYF");
 }
 
 #if 0
-static void 
-display_templ_refs() 
+static void
+display_templ_refs()
 {
   error('d',"display_templ_refs :: templp\n");
 
   	for (Pcons p = templp->templ_refs; p; p = p->cdr) {
 		Ptempl_inst pt = Ptempl_inst(p->car);
 		if ( pt == 0 ) { error('d',"templ_refs: empty (%d)",p->car); continue; }
-  error('d',"\ntempl_refs: %d->car:\n",p->car); 
+  error('d',"\ntempl_refs: %d->car:\n",p->car);
   error('d',"\ttname: %n namep: %n",pt->get_tname(),pt->get_namep());
   error('d',"\tdef: %n refp: %d\n", pt->def->namep, pt->refp);
 	}
 }
 
-static void 
-display_templ_refs( basic_template *bt ) 
+static void
+display_templ_refs( basic_template *bt )
 {
   error('d',"display_templ_refs :: basic_template\n");
 
   	for (Pcons p = bt->templ_refs; p; p = p->cdr) {
 		Ptempl_inst pt = Ptempl_inst(p->car);
 		if ( pt == 0 ) { error('d',"templ_refs: empty (%d)",p->car); continue; }
-  error('d',"\ntempl_refs: %d->car:\n",p->car); 
+  error('d',"\ntempl_refs: %d->car:\n",p->car);
   error('d',"\ttname: %n namep: %n",pt->get_tname(),pt->get_namep());
   error('d',"\tdef: %n refp: %d\n", pt->def->namep, pt->refp);
 	}
 }
 #endif
 
-void 
-templ_compilation::end(Pname p) 
-/* The body of the template has been parsed. 
+void
+templ_compilation::end(Pname p)
+/* The body of the template has been parsed.
  * Finish the definition of the template class */
 {
 //error('d',"templ_compilation::end(%n) tp %k",p,p->tp?p->tp->base:0);
 
-  	// Restore the name state to that prior to 
+  	// Restore the name state to that prior to
         // the processing of the template parameters
 
 	//SYM -- need to restore tables... XXXXX ???
 	// since the lex_level of these paramenters was lex_level+1
 	// each will be hidden by restore() (n_key<==HIDDEN)
   	// modified_tn = param_tn;
-  	// restore(); 
+  	// restore();
   	// modified_tn = 0;
 
 	bool forward_definition = false;
@@ -887,15 +887,15 @@ templ_compilation::end(Pname p)
 			// no break;
 		}
 		else { // should not happen: i.e., caught in grammar
-			error("illegalY %n",p);  
-			return; 
+			error("illegalY %n",p);
+			return;
 		}
 
     	case CLASS:
-      	/* Create the template type to represent the parsed template, 
-	 * entering it into the global table. This is achieved simply 
-	 * by modifying the TNAME that was entered into ktbl to 
-	 * represent the class definition. 
+      	/* Create the template type to represent the parsed template,
+	 * entering it into the global table. This is achieved simply
+	 * by modifying the TNAME that was entered into ktbl to
+	 * represent the class definition.
 	 */
 		{
    		// Pname namep = ktbl->look(p->string,0);
@@ -915,13 +915,13 @@ templ_compilation::end(Pname p)
       		owner = is_template(namep);
       		if (owner) {
 			Pclass c = owner->classtype();
-			// ignore it, if it is a forward declaration 
+			// ignore it, if it is a forward declaration
 			// following a real definition
-			if (owner->defined && 
+			if (owner->defined &&
 				(Pclass(p->tp)->mem_list != owner->members))
 	  				error("YC %s multiply defined", p->string);
 			forward_definition = bool((c->defined & DEF_SEEN) && (!owner->defined));
-			if (forward_definition) 
+			if (forward_definition)
 				owner->resolve_forward_decl(params, c);
 
                         if (pt_opt && forward_definition)
@@ -933,9 +933,9 @@ templ_compilation::end(Pname p)
 		if (owner->defined) {
       		    for (Pname nn=Pclass(p->tp)->mem_list; nn; nn=nn->n_list)
 		    { // look for implicit non-member template friend functions
-			if (nn->base == NAME && 
+			if (nn->base == NAME &&
 				nn->n_sto == FRIEND &&
-				nn->n_qualifier == 0)   
+				nn->n_qualifier == 0)
 			{
 	  			switch(nn->tp->base) {
 	  			case FCT:
@@ -953,9 +953,9 @@ templ_compilation::end(Pname p)
 		templp->clear_friend_ref_templ();
       		break;
 		}
-    
-    		case FCT: 
-		{ 
+
+    		case FCT:
+		{
                         if (pt_opt && !p->fct_type()->body && !p->n_qualifier)
 			    fprintf(pt_file,"f %s %s\n",p->string,curr_filename());
 
@@ -972,7 +972,7 @@ templ_compilation::end(Pname p)
 					Pfct n_fct = p->fct_type();
 
 					// is it an overloaded instance
-					int error_cnt = 0;	
+					int error_cnt = 0;
 					for (fn=tl->fn; tl; tl=tl->gen_list,fn=tl?tl->fn:0) {
 					    extern bit return_error; // set in type::check
 					    if (n_fct->check(fn->tp,PT_OVERLOAD)==0) break;
@@ -1007,16 +1007,16 @@ templ_compilation::end(Pname p)
 				break;
 
 			}
-	
+
 			Pbase q = Pbase(qual->tp);
-			if (q && (q->base == COBJ)) 
+			if (q && (q->base == COBJ))
 	  			switch (get_class_base(q)) {
 	  			case UNINSTANTIATED:
 	    				owner = Ptclass(q->b_name->tp)->inst->def;
-	    				/* verify that the formals specified match the 
-				 	 * template formals in name, note that the length 
-				 	 * was already matched when the instantiation was 
-				 	 * generated 
+	    				/* verify that the formals specified match the
+				 	 * template formals in name, note that the length
+				 	 * was already matched when the instantiation was
+				 	 * generated
 					 */
 	    				if (!get_template_class(q)->inst->check_qualifier(params))
 	      					error ("QrZs must match theY formalZs");
@@ -1034,7 +1034,7 @@ templ_compilation::end(Pname p)
                                         return;
                                         }
 	  			}
-			if (! p->fct_type()->body) 
+			if (! p->fct_type()->body)
 				error ("QdN%n::%n inYFD",qual,p);
 			if (owner)
 			{
@@ -1048,8 +1048,8 @@ templ_compilation::end(Pname p)
 			break;
 		}
 
-    		default: 
-		{ 
+    		default:
+		{
 			Pname qual = p->n_qualifier;
 			if ( !qual ) {
 	    			error ("%n: only static dataCMs may beZized",p);
@@ -1084,71 +1084,71 @@ templ_compilation::end(Pname p)
   	clear_ref_templ();
   	param_end = params = 0;  // Indicates the end of template processing.
   	if (forward_definition) {
-/* XXX: 
+/* XXX:
  *	 make this one line of code based on
  *       owner being a basic_template pointer
  */
-		if (owner) 
+		if (owner)
 			owner->instantiate_forward_decl();
 		else {
 			f_owner->instantiate_forward_decl();
 		}
-	}	
+	}
 
 	parsed_template = owner?(Ptempl_base)owner:(Ptempl_base)f_owner;
   	owner = 0;
 	f_owner = 0;
 }
 
-void 
+void
 templ_compilation::clear_friend_ref_templ() {
   	for (Pcons p = friend_templ_refs; p; p = p->cdr)
     		Ptempl_inst(p->car)->friend_refp = false;
-  	friend_templ_refs = 0; 
+  	friend_templ_refs = 0;
 	last_friend_cons = 0;
 }
 
-void 
+void
 templ_compilation::clear_ref_templ() {
 /* Clear list of templates referenced during syntax analysis of a top
  * level definition.  Note that since this list is produced during syntax
- * analysis, it does not recognize instantiations that may actually turn 
- * out to be identical at instantiation after the substitution of actual 
- * parameters.  Thus, the list may be longer than it would be after the 
+ * analysis, it does not recognize instantiations that may actually turn
+ * out to be identical at instantiation after the substitution of actual
+ * parameters.  Thus, the list may be longer than it would be after the
  * substitution of the actual argument
  */
   	for (Pcons p = templ_refs; p; p = p->cdr)
     		Ptempl_inst(p->car)->refp = false;
-  	templ_refs = 0; 
+  	templ_refs = 0;
 	last_cons = 0;
 }
 
-void 
-templ_compilation::instantiate_ref_templ() 
-/* Instantiate the class templates that were referenced 
+void
+templ_compilation::instantiate_ref_templ()
+/* Instantiate the class templates that were referenced
  * by a non-template definition, after compleletion of
  * syntax analysis on that definition */
 {
   	for (Pcons p = templ_refs; p; p = p->cdr) {
 		if (p->cdr)
 			notinstflag=1;
-		else 
+		else
 			notinstflag=0;
     		Ptempl_inst(p->car)->instantiate();
 	}
   	clear_ref_templ();
 }
 
-static void 
+static void
 data_copy_hook(void*, Pnode &node, node_class,
-	       tree_node_action &action, int& never_see_again) 
+	       tree_node_action &action, int& never_see_again)
 {
 // error('d',"data_copy_hook: %k",node->base);
 
 	never_see_again = 1;
   	switch (node->base) {
   	case NAME:
-      		if(node == sta_name) 
+      		if(node == sta_name)
 			{ action = tna_stop; return; }
   	default:
     		action = tna_continue;
@@ -1156,19 +1156,19 @@ data_copy_hook(void*, Pnode &node, node_class,
   	}
 }
 
-Pname 
+Pname
 templ_inst::data_copy(Pdata dat, Pcons &templ_refs)
 {
 	pointer_hash fcorr(*corr); // initialize with old hash table
-  
-    	{     
+
+    	{
     	tree_copy_info info;
-    	Pnode root = dat->dat_mem; 
+    	Pnode root = dat->dat_mem;
 
      	for (Plist fformal = dat->formals, cformal = inst_formals;
   	     fformal; fformal = fformal->l, cformal = cformal->l) {
-		fcorr[int(fformal->f)] = int(cformal->f);
-		if (fcorr[int(fformal->f)] != int(cformal->f))
+		fcorr[long(fformal->f)] = long(cformal->f);
+		if (fcorr[long(fformal->f)] != long(cformal->f))
 			error ('i', "templ_inst::fuction_copy: hash table bug");
       	}
 
@@ -1176,28 +1176,28 @@ templ_inst::data_copy(Pdata dat, Pcons &templ_refs)
       	info.hook_info = this;
 
       	templ_refs = ref_copy(fcorr,info,templ_refs);
-      	if (fcorr[int(def->namep)] != int(tname))
+      	if (fcorr[long(def->namep)] != long(tname))
   	  	error ('i', "Y to instantiationTN correspondence is missing");
-    
+
       	copy_tree(root,info,&fcorr);
       	return Pname(root);
     	}
 }
 
-void 
-templ_compilation::end_of_compilation() 
-/* 
- * Compile all template member body instantiations. 
- * Set in motion the compilation of the graph of 
+void
+templ_compilation::end_of_compilation()
+/*
+ * Compile all template member body instantiations.
+ * Set in motion the compilation of the graph of
  * instantiation bodies. Note that compilation of
- * a body may in turn initiate the instantiation of 
+ * a body may in turn initiate the instantiation of
  * templates that had not previously been instantiated.  */
 {
 	bool change = false;
   	do {
     		change = false;
     		for (Ptempl p = list; p; p = p->next)
-      			change = ( change | p->instantiate_bodies() 
+      			change = ( change | p->instantiate_bodies()
 				? true : false);
   	} while (change);
 }
@@ -1207,31 +1207,31 @@ name::dinst_body()
 {
 
 
-	if (	
-		data_flag==0 && 
-		all_flag==0 && 
+	if (
+		data_flag==0 &&
+		all_flag==0 &&
 		alltc_flag==0 &&
 		curr_inst==dummyinst &&
 		curr_inst != 0
-	) 
+	)
 		return 0;
 
 
-	if (	
+	if (
 		all_flag==0 &&
 		curr_inst!=dummyinst &&
 		curr_inst!=0
-	) 
+	)
 		return 0;
 
 	bit instflag=0;
 
-	for (int i=0;i<nodatainst;i++) 
+	for (int i=0;i<nodatainst;i++)
 		if (strcmp(instdata[i],string)==0)
 			instflag=1;
 
-	if (	instflag && 
-		curr_inst!=0) 
+	if (	instflag &&
+		curr_inst!=0)
 		return 0;
 
 	return 1;
@@ -1240,32 +1240,32 @@ name::dinst_body()
 bit
 name::finst_body()
 {
-	if (	
-		all_flag==0 && 
-		ft_flag==0 && 
+	if (
+		all_flag==0 &&
+		ft_flag==0 &&
 		fcurr_inst!=0 &&
-		fct_type()->f_inline==0 
-	) 
+		fct_type()->f_inline==0
+	)
 		return 0;
 
-	if (	
-		ft_flag && 
+	if (
+		ft_flag &&
 		fdummyinst!=fcurr_inst &&
 		fcurr_inst!=0 &&
-		fct_type()->f_inline==0 
-	) 
+		fct_type()->f_inline==0
+	)
 		return 0;
 
 	return 1;
 }
 
-bit 
+bit
 name::inst_body()
 {
 	bit inst_flag=0;
 
-	for (int i=0;i<noinst;i++) 
-		if (strcmp(string,instfct[i])==0) 
+	for (int i=0;i<noinst;i++)
+		if (strcmp(string,instfct[i])==0)
 			inst_flag=1; //instantiate it
 
 
@@ -1273,21 +1273,21 @@ name::inst_body()
 
 	bit datainstflag=0;
 
-	for (int j=0;j<nodatainst;j++) 
+	for (int j=0;j<nodatainst;j++)
 		if (strcmp(instdata[j],string)==0)
 			datainstflag=1;
 
 	Pfct ft=fct_type();
 
-	if (	
-		inst_flag==0 && 
+	if (
+		inst_flag==0 &&
 		curr_inst != 0 &&
 		curr_inst==dummyinst &&
 		all_flag==0 &&
 		alltc_flag==0 &&
-		ft->f_virtual==0 && 
+		ft->f_virtual==0 &&
 		ft->f_inline==0
-	)  
+	)
 		return 0;
 
 	if (	datainstflag &&
@@ -1300,24 +1300,24 @@ name::inst_body()
 		return 0;
 
 
-	if (	
+	if (
 		curr_inst==dummyinst &&
-		curr_inst != 0 && 
-		ft->f_virtual && 
+		curr_inst != 0 &&
+		ft->f_virtual &&
 		ft->f_inline==0 &&
 		data_flag==0 &&
 		all_flag==0 &&
 		alltc_flag==0
-	) 
+	)
 		return 0;
 
 //error('d',"this is %n f_inline is %d ft->f_virtual is %d",this,ft->f_inline,ft->f_virtual);
 //error('d',"this %n curr_inst %d dummyinst %d all_flag %d",this,curr_inst,dummyinst,all_flag);
 
-	if (	
+	if (
 		all_flag==0 &&
 		curr_inst!=dummyinst &&
-		curr_inst!=0 && 
+		curr_inst!=0 &&
 		ft->f_inline==0 &&
 		ft->f_is_inline==0
 	)
@@ -1328,67 +1328,67 @@ name::inst_body()
 	return 1;
 }
 
-bool 
+bool
 templ::instantiate_bodies()
-/* Instantiate each member function body. 
- * It assumes that the class declaration has been instantiated. 
- * The return value indicates whether an instantiation of bodies 
- *     actually took place. 
- * This function is only invoked at the end of a file compilation, 
- *     after all source text has been processed. 
+/* Instantiate each member function body.
+ * It assumes that the class declaration has been instantiated.
+ * The return value indicates whether an instantiation of bodies
+ *     actually took place.
+ * This function is only invoked at the end of a file compilation,
+ *     after all source text has been processed.
  * fns: list of member function declarations for template
  * insts: list of instantiations for template */
 {
     bool change = false;
-    if (!fns && !data) return change; 
+    if (!fns && !data) return change;
 
     for (Ptempl_inst inst = insts; inst; inst = inst->next)
 // error('d',"instantiate_bodies: %n inst->status: %d", inst->get_tname(), inst->status );
-   	if (!inst->forward && (inst->status==class_instantiated)) 
+   	if (!inst->forward && (inst->status==class_instantiated))
 	{
-      	    // Set up the environment for the declaration, 
+      	    // Set up the environment for the declaration,
 	    // and subsequent compilation of function bodies
-      	    inst->status = body_instantiated; 
+      	    inst->status = body_instantiated;
 	    change = true;
-	    Pclass ic = inst->get_class(); 
+	    Pclass ic = inst->get_class();
 
-      	    {  
+      	    {
 	    int i;
 	    // note the overriding definitions explicitly provided
 	    for (Pname fn=ic->memtbl->get_mem(i=1); fn; NEXT_NAME(ic->memtbl,fn,i))
-	   	if ((fn->base == NAME) && 
+	   	if ((fn->base == NAME) &&
 		    (fn->tp->base == FCT) && (fn->fct_type()->body))
-	  		    fn->n_redefined = 1; // note overriding definitions 
+	  		    fn->n_redefined = 1; // note overriding definitions
        	    }
 
 		cc->stack(); cc->cot=0; cc->not4=0; cc->tot=0; cc->c_this=0;
 		for (Pfunt fnt=fns; fnt; fnt=fnt->next) {
 			Pcons templ_ref_copy = fnt->templ_refs;
 			Pname fn = inst->function_copy(fnt,templ_ref_copy);
-	
+
 			// Change qualifier to name of the instantiated,
 			// rather than parameterized class name
 			fn->n_qualifier = inst->namep;
 
 			// cond contains type information
 			// shares space with n_table
-			if (fn->n_oper != TYPE ) fn->n_table = 0; 
+			if (fn->n_oper != TYPE ) fn->n_table = 0;
 			fn->n_tbl_list = 0;
-	
+
 			// Note that the formals were bound to actuals
-			// when the class decl was instantiated, 
+			// when the class decl was instantiated,
 			// so the binding is not redone.
-	
+
 			// Modify constructor and destructor names.
 			if (!strcmp(fn->string, namep->string))
-	  			fn->string = inst->namep->string;	
-	
-			{ 
+	  			fn->string = inst->namep->string;
+
+			{
 			inst->save_state(fn);
-	  			
-			// Instantiate the parametrized types 
+
+			// Instantiate the parametrized types
 			// referenced by this template
-	  		for (Pcons pc=templ_ref_copy; pc; pc=pc->cdr) 
+	  		for (Pcons pc=templ_ref_copy; pc; pc=pc->cdr)
 	     			Ptempl_inst(pc->car)->instantiate();
 
 			curr_inst=inst;
@@ -1399,7 +1399,7 @@ templ::instantiate_bodies()
 
 			curr_inst=inst;
 
-			if (se_opt && fn->inst_body()==0) 
+			if (se_opt && fn->inst_body()==0)
 				suppress_error++;
 
   			fn->simpl();
@@ -1418,9 +1418,9 @@ templ::instantiate_bodies()
       		}
 		cc->unstack();
 
-      	    	inst->status = data_instantiated; 
+      	    	inst->status = data_instantiated;
 		cc->stack(); cc->cot=0; cc->not4=0; cc->tot=0; cc->c_this=0;
-        	for (Pdata dat=data; dat; dat=dat->next) 
+        	for (Pdata dat=data; dat; dat=dat->next)
 		{
 			Pcons templ_ref_copy = dat->templ_refs;
 			Pname dn = ic->memtbl->look(dat->dat_mem->string,0);
@@ -1430,17 +1430,17 @@ templ::instantiate_bodies()
 			if (dn->n_redefined) continue; // explicitly defined
 			Pname n = inst->data_copy(dat,templ_ref_copy);
 			n->n_qualifier = inst->namep;
-			n->n_table = 0; n->n_tbl_list = 0; 
-	
+			n->n_table = 0; n->n_tbl_list = 0;
+
 			inst->save_state(n);
   			for (Pcons pc=templ_ref_copy; pc; pc=pc->cdr)
      				Ptempl_inst(pc->car)->instantiate();
 
 			curr_inst=inst;
 
-  			if (((n=n->dcl(gtbl,EXTERN))==0) || 
-			      error_count) { 
-					inst->restore_state(); 
+  			if (((n=n->dcl(gtbl,EXTERN))==0) ||
+			      error_count) {
+					inst->restore_state();
 					continue; }
   			n->simpl();
 
@@ -1449,8 +1449,8 @@ templ::instantiate_bodies()
 			if (n->n_stclass==STATIC && n->n_initializer==0 && n->n_evaluated==0)
 				n->n_initializer=mk_zero_init(n->tp,n,n);
 
-			if (	
-				dtpt_opt && 
+			if (
+				dtpt_opt &&
 				n->dinst_body()==0
 			) {
 				n->n_initializer=0;
@@ -1469,8 +1469,8 @@ templ::instantiate_bodies()
   	return change;
 }
 
-Pname 
-templ_compilation::check_tname(Pname p) 
+Pname
+templ_compilation::check_tname(Pname p)
 /* A predicate to validate that a tname without template parameters is legit
  * in the scope; i.e., that it does not need actual template arguments.
  * Currently, a tname without parameters is ok within the class definition,
@@ -1490,25 +1490,25 @@ templ_compilation::check_tname(Pname p)
 
 	// explicit instance
 	extern Ptempl_inst pti;
-	if (pti && pti->def == t) 
+	if (pti && pti->def == t)
 		return p;
 
   	error ("%n needsY instantiationAs",p);
   	return p;
 }
 
-bool 
-templ_compilation::current_template(Pname p, Pexpr actuals) 
-/* 
+bool
+templ_compilation::current_template(Pname p, Pexpr actuals)
+/*
  * Determine if parameters specified to a template are
- * redundant, and really refer to the current template 
+ * redundant, and really refer to the current template
  * class. Thus,
  *
- *      template c<class p1, class p2> c<p1,p2>::foo 
+ *      template c<class p1, class p2> c<p1,p2>::foo
  *			{ ... };
  *
- * has the redundant template specification c<p1, p2> 
- * and can simply be a reference to a "c" instead 
+ * has the redundant template specification c<p1, p2>
+ * and can simply be a reference to a "c" instead
  */
 {
 // error('d',"templ_compilation::current_template(%n) in_progress: %d",p,in_progress);
@@ -1561,24 +1561,24 @@ templ_compilation::current_template(Pname p, Pexpr actuals)
     	}
   	return false;
 }
-  
-Pfunt 
-templ::collect_function_member(Pname fname) 
+
+Pfunt
+templ::collect_function_member(Pname fname)
 { // Add a new member function to list of template class functions
-  	PERM(fname); PERM(fname->tp); 
+  	PERM(fname); PERM(fname->tp);
 	PERM(Pfct(fname->tp)->body);
   	return new function_template(*this,templp->params,fname);
 }
 
-Pdata 
-templ::collect_data_member(Pname dname) 
-{ // Add a new static data member to list of template class 
-  	PERM(dname); PERM(dname->tp); 
+Pdata
+templ::collect_data_member(Pname dname)
+{ // Add a new static data member to list of template class
+  	PERM(dname); PERM(dname->tp);
   	return new data_template(*this,templp->params,dname);
 }
 
-void 
-check_formals_for_dups(Plist formals) 
+void
+check_formals_for_dups(Plist formals)
 { // template <class T, class T> class X;
 	for (Plist fl1 = formals; fl1; fl1 = fl1->l) {
 		Pname n1 = fl1->f;
@@ -1591,7 +1591,7 @@ check_formals_for_dups(Plist formals)
 }
 
 bit
-contains_formal(Pname formal, Pclass cl) 
+contains_formal(Pname formal, Pclass cl)
 {
 // error('d',"contains_formal formal: %n cl %t cl->class_base: %d", formal,cl,cl->class_base);
 	if ( cl->class_base == VANILLA ) return 0;
@@ -1604,7 +1604,7 @@ contains_formal(Pname formal, Pclass cl)
 			if (strcmp(formal->string,tn->string) == 0)
 				return 1;
 		}
-	} 
+	}
 	else {
 	// Queue<Type> in formal, Queue<T> in formal signature
 		Ptempl t = templp->is_template(cl->string);
@@ -1619,13 +1619,13 @@ contains_formal(Pname formal, Pclass cl)
 
 	return 0;
 }
-		
-void 
-check_funct_formals(Plist formals, Pname namep) 
-{ 
+
+void
+check_funct_formals(Plist formals, Pname namep)
+{
 // error('d',"check_funct_formals: %n", namep);
 	check_formals_for_dups(formals);
-	for (Plist fl = formals; fl; fl = fl->l) 
+	for (Plist fl = formals; fl; fl = fl->l)
 	{
 		Pname fn = fl->f;
 		if (!fn->is_template_arg()) {
@@ -1638,15 +1638,15 @@ check_funct_formals(Plist formals, Pname namep)
 		{
 			Ptype t = a->tp;
 			int found = 0;
-			while (t->base == PTR || t->base == RPTR 
+			while (t->base == PTR || t->base == RPTR
 				|| t->base == VEC)
-			{ 
+			{
 				switch (t->base) {
-					case PTR: 
+					case PTR:
 					    if (Pptr(t)->ptname) { // T::*
 						Pname n = Pptr(t)->ptname;
 						if (strcmp(n->string,fn->string)==0) found = 1;
-						t = n->tp; 
+						t = n->tp;
 						break;
 					     }
 					case RPTR: t = Pptr(t)->typ; break;
@@ -1660,10 +1660,10 @@ check_funct_formals(Plist formals, Pname namep)
 				if (contains_formal(fn,t->classtype())) {
 					break;
 				}
-			} 
+			}
 			else if (t->base != TYPE) continue;
 
-			Pname tn = t->bname();			
+			Pname tn = t->bname();
 			if (!tn->is_template_arg()) {
 				t = tn->tp;
 				if (t->base == COBJ ) { // min(X<T>
@@ -1680,7 +1680,7 @@ check_funct_formals(Plist formals, Pname namep)
 			error("FYZ%n must be used in signature of %n",fn,namep);
 	}
 }
-		
+
 #if 0
 templ_compilation::get_formals_count()
 {
@@ -1690,22 +1690,22 @@ templ_compilation::get_formals_count()
 }
 #endif
 
-int basic_template::get_formals_count() 
+int basic_template::get_formals_count()
 {
 	int cnt = 0;
   	for ( Plist f = formals; f; f=f->l, ++cnt);
 	return cnt;
 }
 
-void 
-basic_template::check_formals(Plist f2) 
-/* Check the formals specified for a member function 
- * or a forward definition of a class 
+void
+basic_template::check_formals(Plist f2)
+/* Check the formals specified for a member function
+ * or a forward definition of a class
  * against the formals for the class  */
 {
 	Plist f1 = formals;
   	for (; f1 && f2; f1=f1->l, f2=f2->l)
-    		if (f1->f->base != f2->f->base) 
+    		if (f1->f->base != f2->f->base)
       			switch (f1->f->n_template_arg) {
       			    case template_type_formal:
 				error("Y formalZ mismatch, %n must be aT formalZ",f2->f);
@@ -1718,8 +1718,8 @@ basic_template::check_formals(Plist f2)
       			    default:
 				error("formalZ mismatch betweenC formal: %n andM formal: %n",f1->f,f2->f);
       			}
-		else 
-		if (f1->f->n_template_arg == template_expr_formal) 
+		else
+		if (f1->f->n_template_arg == template_expr_formal)
 		{
 			// the types should be identical
 			if (f1->f->tp->check(f2->f->tp, 0) == 1)
@@ -1731,13 +1731,13 @@ basic_template::check_formals(Plist f2)
 
   		if (f2)
     		    error ("excess formalZs,Z%n onwards not defined forC",f2->f);
-  
+
 }
 
-static Ptype 
+static Ptype
 real_type (Ptype t)
 { // predicate to get past all the type nodes
-  	while (t && t->base == TYPE) 
+  	while (t && t->base == TYPE)
 		t = Pbase(t)->b_name->tp;
   	return t;
 }
@@ -1766,12 +1766,12 @@ vec_eval(Ptype p)
 	}
 }
 
-bool 
+bool
 templ::check_actual_args(Pexpr actual)
 { // check actual template arguments against formals
 
 	Plist formal=formals;
-	for (; formal && actual; 
+	for (; formal && actual;
 		formal=formal->l, actual=actual->e2)
 	{
 // error('d',"check_actual_args: formal %n %t", formal->f, formal->f->tp);
@@ -1780,17 +1780,17 @@ templ::check_actual_args(Pexpr actual)
     		case template_type_formal:
       		{
 		/* A "type type" parameter, any actual type that
-		 * was accepted by the parse is acceptable here, 
+		 * was accepted by the parse is acceptable here,
 		 * just make sure that it is indeed a type.
-		 * If it was parsed as a type, the grammar 
-		 * should have created a name node, and 
-		 * attached the type to it, having marked the 
+		 * If it was parsed as a type, the grammar
+		 * should have created a name node, and
+		 * attached the type to it, having marked the
 		 * name as a template_actual_arg_dummy.  */
 
 			vec_eval(real_type(actual->e1->tp));
 			Pname n = Pname(actual->e1);
 			if (!((n->base == NAME) &&
-	    	     		(n->n_template_arg==template_actual_arg_dummy))) 
+	    	     		(n->n_template_arg==template_actual_arg_dummy)))
 			{
 	  			error ("Y %sA mismatch, theY formal:%n required aT actualZ", namep->string, formal->f);
 	  			// recover from error with a safe expression
@@ -1810,16 +1810,16 @@ templ::check_actual_args(Pexpr actual)
       		} // case template_type_formal
 
     		case template_expr_formal:
-      		// in general, checking can only be done at instantiation, 
+      		// in general, checking can only be done at instantiation,
  		// however, check 0 as actual for pointer
 			{
 			Ptype tp = formal->f->tp->skiptypedefs();;
-			if (actual->e1->base==ZERO && tp->base==PTR) 
-			{ 
+			if (actual->e1->base==ZERO && tp->base==PTR)
+			{
 				// ``2'' signifies user didn't set const
-				if (tp->b_const == 2) 
+				if (tp->b_const == 2)
 					tp->b_const = 0;
-				error("cannot instantiate 0 to formalZ%n(%t)",formal->f,tp); 
+				error("cannot instantiate 0 to formalZ%n(%t)",formal->f,tp);
 			}
       			break;
 			}
@@ -1828,20 +1828,20 @@ templ::check_actual_args(Pexpr actual)
     		}
 	} // for loop
 
-  	// ??????????????? If we provide for optionals, 
+  	// ??????????????? If we provide for optionals,
  	// this is where the processing should get done.
   	if (formal)
     		error ("too fewAs supplied forY %s",namep->string);
 
-  	if (actual && actual->e1) 
+  	if (actual && actual->e1)
     		error ("too manyAs supplied forY %s", namep->string);
 
 // error('d',"check_actual_args: formal: %d actual: %d", formal, actual);
   	return bool(~(formal || actual));
 }
 
-void 
-templ_compilation::append_friend_ref(Ptempl_inst ref) 
+void
+templ_compilation::append_friend_ref(Ptempl_inst ref)
 { // Append to the list of references.
 // error('d',"append_friend_ref: %n",ref->get_tname());
 
@@ -1852,8 +1852,8 @@ templ_compilation::append_friend_ref(Ptempl_inst ref)
   	last_friend_cons = p;
 }
 
-void 
-templ_compilation::append_ref(Ptempl_inst ref) 
+void
+templ_compilation::append_ref(Ptempl_inst ref)
 { // Append to the list of references.
 // error('d',"append_ref: %n",ref->get_tname());
 
@@ -1869,12 +1869,12 @@ templ_compilation::append_ref(Ptempl_inst ref)
 static bit ref_in_friend = 0;
 static bit ignore_ref = 0;
 
-Ptempl_inst 
-templ_inst::note_ref() 
-/* Note the reference by a definition to the template, 
- * so that the template can be instantiated before the 
+Ptempl_inst
+templ_inst::note_ref()
+/* Note the reference by a definition to the template,
+ * so that the template can be instantiated before the
  * definition is processed.  */
-{  
+{
 // error('d',"templ_inst::note_ref: %n", tname);
 	if ( ref_in_friend && ignore_ref == 0) {
 		friend_refp = true;
@@ -1887,40 +1887,40 @@ templ_inst::note_ref()
   	}
   	return this;
 }
-  
+
 bool
-templ_compilation::friend_template(Pexpr actuals) 
-/* 
- * Determine if parameters specified to a friend template 
- * are redundant -- refer to the current template formals 
+templ_compilation::friend_template(Pexpr actuals)
+/*
+ * Determine if parameters specified to a friend template
+ * are redundant -- refer to the current template formals
  * if so, do not note reference: not a case for instantiation */
 {
 	// Check whether the formal and actual types are identical
       	Pexpr actual = actuals;
       	Plist formal = params;
-      	for (; formal && actual; 
+      	for (; formal && actual;
 		formal = formal->l, actual = actual->e2)
 	{
-		if ((formal->f->tp == actual->e1->tp) || 
-    			((actual->e1->tp && 
+		if ((formal->f->tp == actual->e1->tp) ||
+    			((actual->e1->tp &&
 			 (actual->e1->tp->base == TYPE)) &&
      			 (Pbase(actual->e1->tp)->b_name->tp == formal->f->tp)))
 	  				continue;
 		else break;
 	}
 
- 	if (!formal && !actual) 
+ 	if (!formal && !actual)
 	    return true;
   	return false;
 }
-  
+
 extern int dont_instantiate;
 
-Ptempl_inst 
+Ptempl_inst
 templ::get_inst(Pexpr actuals, Ptempl_inst exclude)
-/* 
- * Get an instantiation for the template with the given set of actuals. 
- * If one exists, return it, otherwise create a new one. 
+/*
+ * Get an instantiation for the template with the given set of actuals.
+ * If one exists, return it, otherwise create a new one.
  */
 {
 // error('d',"templ::get_inst: %n", namep);
@@ -1981,13 +1981,13 @@ templ::get_inst(Pexpr actuals, Ptempl_inst exclude)
 	return inst;
 }
 
-Ptempl_inst 
-templ::get_match(Pexpr actuals, Ptempl_inst exclude,  
-	         bool match_instantiated_only)     
-/* Find an instantiation that has the same set of actuals, 
+Ptempl_inst
+templ::get_match(Pexpr actuals, Ptempl_inst exclude,
+	         bool match_instantiated_only)
+/* Find an instantiation that has the same set of actuals,
  * exclude: don't match this one passed in from the set of candidates
  * match_instantiated_only: only instantiated templates match */
-{  
+{
   	for (Ptempl_inst p = insts ; p ; p = p->next)
 	{
     		if ((p != exclude) &&
@@ -2003,14 +2003,14 @@ templ::get_match(Pexpr actuals, Ptempl_inst exclude,
 int template_hier; // interim solution: permit Y<t> to match X<t>
 
 Pfunct_inst
-function_template::get_match(Pexpr actuals, Pfunct_inst exclude, 
+function_template::get_match(Pexpr actuals, Pfunct_inst exclude,
 				bool match_instantiate_only)
 {
 	for (Pfunct_inst p = insts; p; p = p->next)
 	{
 		if ( (p != exclude) &&
 			(p->actuals_match(actuals)) &&
-			(match_instantiate_only ? 
+			(match_instantiate_only ?
 				Ptfct(p->tname->tp)->fct_base == INSTANTIATED
 				: true))
 			return p;
@@ -2027,10 +2027,10 @@ check_actuals( Pexpr actuals, Pname fn )
 	Ptype t = ae->e1->tp->skiptypedefs();
 	if ( t->base == COBJ ) t = t->classtype();
 	if ( t->base != CLASS ) continue;
-	if ( strncmp("__C",Pclass(t)->string,3) == 0 ) 
-		error("YF%n instantiatedW unnamedC", fn); 
-	if ( t->lex_level && t->local_sig ) 
-		error('s',"YF%n instantiatedW localC %s", fn,Pclass(t)->string); 
+	if ( strncmp("__C",Pclass(t)->string,3) == 0 )
+		error("YF%n instantiatedW unnamedC", fn);
+	if ( t->lex_level && t->local_sig )
+		error('s',"YF%n instantiatedW localC %s", fn,Pclass(t)->string);
     }
 
 }
@@ -2048,27 +2048,27 @@ function_template::get_inst(Pexpr actuals, Pfunct_inst exclude)
 }
 
 #if 0
-Pbase 
+Pbase
 templ::inst_basetype(Pexpr actuals)
 { // provides the basetype created for a given set of actuals.
-	return (check_actual_args(actuals) 
-		? Pbase(get_inst(actuals)->tname->tp) 
+	return (check_actual_args(actuals)
+		? Pbase(get_inst(actuals)->tname->tp)
 		: basep);
 }
 #endif
 
-Pname 
-parametrized_typename(Pname p, Pexpr actuals, bit in_friend) 
-/* Validate that the name denotes a parametrized type, 
+Pname
+parametrized_typename(Pname p, Pexpr actuals, bit in_friend)
+/* Validate that the name denotes a parametrized type,
  * and produce a TNAME for the instantiation.  */
-{ 
+{
 // error('d',"parametrized_typename(%n (%d),%k) in_friend:%d",p,p,actuals->base,in_friend);
 	Ptempl t = templp->is_template(p);
 
 	// A template instantiation with redundant actuals
 	// identical to the formals of the current template
 
-  	if (templp->current_template(p, actuals) && in_friend == 0) 
+  	if (templp->current_template(p, actuals) && in_friend == 0)
 		return p;
 
   	if (t) {
@@ -2081,31 +2081,31 @@ parametrized_typename(Pname p, Pexpr actuals, bit in_friend)
   	return p;
 }
 
-Pname 
-templ::typename4(Pexpr actuals) 
+Pname
+templ::typename4(Pexpr actuals)
 { // obtain typename associated with an instantiation
-  	return (check_actual_args(actuals) 
+  	return (check_actual_args(actuals)
 		? get_inst(actuals)->tname : 0);
 }
 
 
 // Check whether the actuals provided match the actuals for this instantiation.
-// The actuals match the formals, iff they are same type or parametrized type. 
-bool 
+// The actuals match the formals, iff they are same type or parametrized type.
+bool
 templ_inst::actuals_match(Pexpr check_actuals)
-{ 
+{
   Pexpr ae1, ae2 ;     // the cons cells
   Plist formal = def->formals ;
-  
+
   // The lists should be the same length, since check_actuals will have taken
   // appropriate action.
   for (ae1=actuals, ae2=check_actuals ; formal && ae1 && ae2 ;
        ae1=ae1->e2, ae2=ae2->e2, formal = formal->l)
 
     switch (formal->f->n_template_arg) {
-    
+
     case template_type_formal:
-      { 
+      {
 	Ptype t1 = ae1->e1->tp, t2 = ae2->e1->tp ;
 	if (t1->check(t2,255) == 1)
 	  return false ;
@@ -2114,7 +2114,7 @@ templ_inst::actuals_match(Pexpr check_actuals)
     case template_expr_formal:
       if (! expr_match(ae1->e1, ae2->e1)) return false ;
       break ;
-      
+
     default:
       error ('i', "bad template formal") ;
     }
@@ -2145,7 +2145,7 @@ funct_inst::actuals_match(Pexpr check_actuals)
 		while ( t2->base == TYPE ) {
 			Pname nnn = t2->bname();
 			// instantiation inside instantiated function
-			if (nnn->is_template_arg()) 
+			if (nnn->is_template_arg())
 				t2 = t2->bname_type();
 			else
 				t2 = nnn->tp;
@@ -2189,25 +2189,25 @@ funct_inst::actuals_match(Pexpr check_actuals)
 }
 
 extern char emode;
-/* stradd:  set of overloaded fuctions used to 
+/* stradd:  set of overloaded fuctions used to
  * accumulate name strings */
 
 
-void 
+void
 stradd(char *&target, char *source, int numeric = 0) {
 // error('d',"stradd: target: %s\t source: %s\tnumeric: %d",target,source,numeric);
   	while (*target = *source) {
-		if ( *target == '-' && numeric ) 
+		if ( *target == '-' && numeric )
 			*target = 'n';
 		target++; source++;
   	}
 }
-	
-void 
+
+void
 stradd(char *&p, long long i) {
   char s[64];
   char t[64];
-  
+
   	if (!emode) { *p++ = 'L'; }
   	sprintf(s,"%lld", i);
 	if (!emode) {
@@ -2220,32 +2220,32 @@ stradd(char *&p, long long i) {
   	else stradd(p,s,0);
 }
 
-void 
+void
 stradd(char *&p, Pname n) {
   	if (!emode){
     		char s[1024];
-    
+
     		sprintf(s,"%d", strlen(n->string));
     		stradd(p,s);
   	}
   	stradd(p, n->string);
 }
 
-char* 
+char*
 mangled_expr(char *p, Pexpr e, bool mangle_for_address = false)
-/* produce a unique string suitable for use within a name; 
- * if in emode, i.e., printing in the context of an error, 
+/* produce a unique string suitable for use within a name;
+ * if in emode, i.e., printing in the context of an error,
  * print a pretty name instead. */
 {
   	static int mangle_address = 0;
   	if (e == 0) return p;
 
 // error('d',"mangled_expr: p %s e: %k", p, e?e->base:0);
-  
+
 	switch (e->base) {
   	case ADDROF:
   	case G_ADDROF:
-    		// relies on unary using e2 
+    		// relies on unary using e2
     		++mangle_address;
 		if (emode)
 		{
@@ -2254,7 +2254,7 @@ mangled_expr(char *p, Pexpr e, bool mangle_for_address = false)
     		p = mangled_expr(p,e->e2);
     		--mangle_address;
     		break;
-    
+
   	case NAME:
     		if (mangle_address || mangle_for_address)
 		{
@@ -2268,7 +2268,7 @@ mangled_expr(char *p, Pexpr e, bool mangle_for_address = false)
 					char xx[1024];
 					char s[1024];
 					char *st = t->base!=FCT
-						? n->n_table->t_name->string 
+						? n->n_table->t_name->string
 						: Pfct(t)->memof->string;
 					if (emode)
 					{
@@ -2287,10 +2287,10 @@ mangled_expr(char *p, Pexpr e, bool mangle_for_address = false)
 			}
 			else stradd(p,Pname(e));
 		}
-    		else 
+    		else
 		if (Pname(e)->n_evaluated)
       			stradd(p,Pname(e)->n_val);
-    		else 
+    		else
 		if (Pname(e)->n_initializer) {
 			// see ``suitable_const_expr''
 			Pexpr ee = Pname(e)->n_initializer;
@@ -2299,31 +2299,31 @@ mangled_expr(char *p, Pexpr e, bool mangle_for_address = false)
 				p = mangled_expr(p,ee);
 			else p = mangled_expr(p,ee,true);
 		}
-		else 
+		else
 		if (Pname(e)->tp->base == VEC || Pname(e)->tp->base == FCT)
 			stradd(p,Pname(e));
     		else error('i',"mangled_expr: couldn't mangle actualYE %n",e);
     		break ;
-      
+
   	case IVAL:
     		stradd(p, ((ival *)e)->i1);
     		break;
 
   	case CAST:
   	case G_CAST:
-    	{ 
+    	{
 		// an IVAL || ICON hiding below the cast?
 		// see ``suitable_const_expr''
       	  	if (e->e1->base == IVAL) {
 		    stradd(p, ((ival *)e->e1)->i1);
 		    break;
 	  	}
-	  	else 
+	  	else
       	  	if (e->e1->base == ZERO) {
     	    	    *p++ = '0';
 		    break;
 	  	}
-	  	else 
+	  	else
       	  	if (e->e1->base != ICON && e->e1->base != CCON)
 		{
 			if (emode)
@@ -2369,7 +2369,7 @@ mangled_expr(char *p, Pexpr e, bool mangle_for_address = false)
       	    	    while (*p)
       		    	if (! (isalnum(*p)))
 			    switch(*p) {
-				case '+': 
+				case '+':
 	  			    *p++ = 'p';
 	  			    break;
 				case '-':
@@ -2384,13 +2384,13 @@ mangled_expr(char *p, Pexpr e, bool mangle_for_address = false)
 				default:
 	  			    error ('i', "bad character in constant");
 	  			    break;
-			    } 
+			    }
 			else p++;
     		break ;
 	}
   	case ZERO:
-    	    	*p++ = '0'; 
-		break; 
+    	    	*p++ = '0';
+		break;
 	case ILIST: // pointer to member constant
 	{
 	// literal encoding of pointer to member :: LM
@@ -2400,22 +2400,22 @@ mangled_expr(char *p, Pexpr e, bool mangle_for_address = false)
 			break;
 		}
 		Pexpr i1 = e->e1->e1; // delta
-		Pexpr i2 = e->e1->e2; // index 
+		Pexpr i2 = e->e1->e2; // index
 		Pexpr i3 = (e->e2->base==CAST||
 			e->e2->base==G_CAST)?e->e2->e1:e->e2; // function address or 0
 		*p++ = 'L'; *p++ = 'M';
 		p = mangled_expr(p,i1); *p++ = '_';
 		p = mangled_expr(p,i2); *p++ = '_';
-		if (i3->base != NAME) //  
+		if (i3->base != NAME) //
 			p = mangled_expr(p,i3);   // virtual function
 		else p = mangled_expr(p,i3,true); // address of name
 	}
 		break;
-	case DOT: 
+	case DOT:
 	case REF:
 	    	if (mangle_address) {
 		    while (e->base == DOT || e->base == REF)
-		           e = Pexpr(e->mem);	
+		           e = Pexpr(e->mem);
     	    	     p = mangled_expr(p,e->e2);
 	    	     break;
 	        }
@@ -2441,7 +2441,7 @@ mangled_expr(char *p, Pexpr e, bool mangle_for_address = false)
 
 #if 0
 char*
-mangled_expr(char *p, Pname n) 
+mangled_expr(char *p, Pname n)
 { // this function is invoked once at the top level
 
   	if (n->n_evaluated) {
@@ -2457,30 +2457,30 @@ mangled_expr(char *p, Pname n)
 void
 templ_inst::print_pretty_name()
 {
-/* Generate a template class instantiation name suitable for printing 
+/* Generate a template class instantiation name suitable for printing
  * when it is presented to the user.
  * this depends on using a %t and passing it a classdef type --
  * passing it the %n, Pname pair will have it print out with encoding */
 
   	extern char emode;
-  
+
   	/* 3.1/4.0: until next release when defs are merged */
 	Pname n = Ptempl_inst(this)->def->namep;
   	error('c', " %s<", (n ? n->string : "?"));
 
   	Plist formal = inst_formals;
-  	emode++;  
-  
-  	for ( Pexpr ae1=actuals; formal && ae1; 
-              ae1=ae1->e2, formal = formal->l ) 
+  	emode++;
+
+  	for ( Pexpr ae1=actuals; formal && ae1;
+              ae1=ae1->e2, formal = formal->l )
         {
-    		if (ae1->e1->base == 0) break; // we are in an error mode in any case 
+    		if (ae1->e1->base == 0) break; // we are in an error mode in any case
     		switch (formal->f->n_template_arg) {
     			case template_type_formal:
       				ae1->e1->tp->dcl_print(0);
       				break;
-    			case template_expr_formal: { 
-       				char buff[ 1024 ]; 
+    			case template_expr_formal: {
+       				char buff[ 1024 ];
        				memset(buff,0,1024);
        				mangled_expr(buff, ae1->e1);
        				error('c',"%s", buff);
@@ -2489,7 +2489,7 @@ templ_inst::print_pretty_name()
     			default: error('i',"unexpected formalZ");
     		}
 
-        	// this comma is unfortunately misplaced, 
+        	// this comma is unfortunately misplaced,
         	// since it follows a space printed out by dcl_print
     		if (formal->l) error('c',", ");
   	}
@@ -2546,10 +2546,10 @@ check_expr(TOK b)
 	}
 }
 
-int 
-check_for_const(Pexpr a1, Pexpr a2) 
-{ // there are different representations for ICON based upon 
-  // whether it has been evaluated. 
+int
+check_for_const(Pexpr a1, Pexpr a2)
+{ // there are different representations for ICON based upon
+  // whether it has been evaluated.
 // error('d',"check_for_const a1: %k a2: %k",a1->base,a2->base);
 // error('d',"check_for_const a1(tp): %t a2(tp): %t",a1->tp,a2->tp);
 
@@ -2604,10 +2604,10 @@ check_for_const(Pexpr a1, Pexpr a2)
 
   	return false;
 }
-  
+
 // get past the template parameter names to get the the real expression
-static Pexpr 
-real_expression(Pexpr e) 
+static Pexpr
+real_expression(Pexpr e)
 {
   while (e && (e->base == NAME) &&
 	 (Pname(e)->n_template_arg == template_expr_formal) &&
@@ -2617,15 +2617,15 @@ real_expression(Pexpr e)
 }
 
 // determine whether two expressions supplied as actual arguments to
-// a "template_expr_formal"  formal argument match. 
-static int 
+// a "template_expr_formal"  formal argument match.
+static int
 expr_match(Pexpr a1, Pexpr a2)
 {
   static int addr_of = 0 ;
 
   a1 = (addr_of ? a1 : real_expression(a1)) ;
   a2 = (addr_of ? a2 : real_expression(a2)) ;
-  
+
   if (a1 == a2) return true;
 
 // error('d',"expr_match: a1 %k a2 %k",a1->base,a2->base);
@@ -2639,7 +2639,7 @@ expr_match(Pexpr a1, Pexpr a2)
     return ( expr_match(a1->cond, a2->cond) &&
 	     expr_match(a1->e1, a2->e1) &&
 	     expr_match(a1->e2, a2->e2)) ;
-  
+
   case PLUS: case MINUS: case MUL: case DIV: case MOD:
   case ER: case OR: case ANDAND: case OROR:
   case LS: case RS:
@@ -2720,15 +2720,15 @@ expr_match(Pexpr a1, Pexpr a2)
 	return false;
   }
   return false ;
-}     
+}
 
-static char* 
-non_type_argument_signature(Pexpr e, char *p) 
-{ // template <int ix, double sal> ... 
+static char*
+non_type_argument_signature(Pexpr e, char *p)
+{ // template <int ix, double sal> ...
   	p = e->tp->signature(p);
   	return mangled_expr(p,e);
 }
-  
+
 /* check for excessive template class nesting levels */
 static int
 check_nest(char* s, int max)
@@ -2758,16 +2758,16 @@ check_nest(char* s, int max)
 	}
 	return maxn;
 }
-    
+
 // Generate a mangled template instantiation name. The syntax of as template
 // mangled class name is of the form:
 //   original_name__<argument type signatures>__unique_id
 // Each non-type argument is replaced by a unique id.
 char*
 templ_inst::mangled_name(char *ip)
-{ 
+{
 // error('d',"templ_inst::mangled_name(%s)", ip);
-	 
+
   char *start = ip ;
   ip = start ;
   strcpy(ip, (def->namep ? def->namep->string : "?")) ;
@@ -2777,7 +2777,7 @@ templ_inst::mangled_name(char *ip)
   {
     char  a [max_string_size], *p = a ;
     Plist formal = inst_formals ;
-  
+
     for (Pexpr ae1=actuals ; ae1 ; ae1=ae1->e2, formal = formal->l)
       switch (formal->f->n_template_arg) {
       case template_expr_formal:
@@ -2785,22 +2785,22 @@ templ_inst::mangled_name(char *ip)
 	// the formal must have been bound
 	p = non_type_argument_signature(formal->f, p) ;
 	break ;
-      
-      case template_type_formal:  
+
+      case template_type_formal:
 	p = ae1->e1->tp->signature(p,1) ;
 	break ;
-      
+
       default:
 	error ("bad template formal:%d", formal->f->base) ;
 	break ;
       }
-    
+
     *p = 0 ;
     sprintf(ip, "%d_", strlen(a)+1) ;
     ip = start + strlen(start) ;
     strcpy(ip,a) ;
   }
-    
+
 // error('d',"templ_inst::mangled_name(%s)", start);
   if (check_nest(start, 9999) > MAX_INST_DEPTH) {
 	if (!error_count)
@@ -2813,7 +2813,7 @@ templ_inst::mangled_name(char *ip)
 }
 
 char*
-funct_inst::mangled_name(char *ip) 
+funct_inst::mangled_name(char *ip)
 { /* generate mangled template instantiation name of the form
    * <function_name>__pt__F<size>_[<arg>_]... */
 
@@ -2851,17 +2851,17 @@ funct_inst::mangled_name(char *ip)
     	ip = start + strlen(start);
     	strcpy(ip,buf);
 
-// error('d',"funct_inst::mangled_name: %n (%s)",def->fn,start);    
+// error('d',"funct_inst::mangled_name: %n (%s)",def->fn,start);
   	return start;
 }
 
 const char leader[]= "\t";
 
-void 
-basic_inst::print_error_loc(int newline) 
+void
+basic_inst::print_error_loc(int newline)
 {
-/* Explain the location of an instantiation in greater detail, 
- * since it may be far removed from it's textual definition. 
+/* Explain the location of an instantiation in greater detail,
+ * since it may be far removed from it's textual definition.
  */
 
   	if (! basic_inst::head) return; // No active instantiations
@@ -2883,7 +2883,7 @@ basic_inst::print_error_loc(int newline)
     		// A more compact message for a single level of instantiation
     		context.restore();
     		print_loc();
-    		error('c', "%sis the site of the instantiation\n", leader); 
+    		error('c', "%sis the site of the instantiation\n", leader);
   	}
 	else {
     		// The instantiation chain is longer than one
@@ -2901,18 +2901,18 @@ basic_inst::print_error_loc(int newline)
 }
 
 char*
-basic_inst::instantiation_string() 
+basic_inst::instantiation_string()
 { /* generates name for class or function template */
   	char inst_name[max_string_size];
   	for (int i=0; i<max_string_size; ++i) inst_name[i]=0;
   	mangled_name(inst_name); // virtual call
   	return strdup(inst_name);
-} 
-    
-void 
+}
+
+void
 classdef::modify_inst_names(char *s)
-{ /* Change the names for the class, constructors, 
-   * and destructors to reflect the new class instantiation name.  */ 
+{ /* Change the names for the class, constructors,
+   * and destructors to reflect the new class instantiation name.  */
 // error('d',"%t->modify_inst_names(%s)",this,s);
 
   	char *old = string;
@@ -2928,13 +2928,13 @@ classdef::modify_inst_names(char *s)
 
   	// Change the constructor names
    	for (Pname p=mem_list; p; p=p->n_list)
-    		if (p->tp && (p->tp->base==FCT) && 
+    		if (p->tp && (p->tp->base==FCT) &&
 		   (!strcmp(old, p->string)))
       			p->string = s;
 }
 
-Ptype 
-non_template_arg_type(Pbase t) 
+Ptype
+non_template_arg_type(Pbase t)
 { // Get past the fake template argument name typename types
 // error('d',"non_template_arg_type: %t", t );
 
@@ -2945,12 +2945,12 @@ non_template_arg_type(Pbase t)
 }
 
 // follow the chain until we hit a non
-void 
+void
 non_template_arg_non_type(Pname n) {
-  Pexpr i = n->n_initializer; 
+  Pexpr i = n->n_initializer;
   while (i &&
 	 (i->base == NAME) &&
-	 (Pname(i)->n_template_arg == template_expr_formal)) 
+	 (Pname(i)->n_template_arg == template_expr_formal))
     {
       if (Pname(i)->n_initializer) {
 	n->n_initializer = Pname(i)->n_initializer ;
@@ -2968,9 +2968,9 @@ non_template_arg_non_type(Pname n) {
 
 // Now that the actuals are truly resolved, ie. semantics is complete, and the
 // template is about to be instantiated.
-void 
+void
 forward_template_arg_types(Plist formal, Pexpr actuals)
-{   
+{
   for (Pexpr actual = actuals ; formal && actual ;
        formal = formal->l, actual = actual->e2)
     switch(formal->f->n_template_arg){
@@ -2983,12 +2983,12 @@ forward_template_arg_types(Plist formal, Pexpr actuals)
       error ('i', "bad template formal") ;
     }
 }
-     
-static int  
+
+static int
 suitable_const_expr(Pname n)
-/* 
- * determine whether the supplied expression is suitable 
- * All expressions must be of the form constant integer expression, 
+/*
+ * determine whether the supplied expression is suitable
+ * All expressions must be of the form constant integer expression,
  * or the address of a variable, or an array, or function */
 {
 // error('d',"suitable_const_expr %n",n);
@@ -3001,15 +3001,15 @@ suitable_const_expr(Pname n)
   	switch (ee->base) {
   	case CAST:
   	case G_CAST:
-    	{ 
+    	{
 		Pexpr e = ee->e1;
 		// if it is a cast of an integer value, it's fine.
-      		if (e->base == IVAL || e->base == ICON || 
+      		if (e->base == IVAL || e->base == ICON ||
 		    e->base == CCON || e->base == ZERO)
 			return 1;
       		return -2; // to permit explicit sorry
     	}
-  
+
   	// case FCON:  /* should be caught in bind_formals() */
   	case ZERO:
     		return 1;
@@ -3020,13 +3020,13 @@ suitable_const_expr(Pname n)
       		Pexpr e = ee->e2;
 		while (e->base == DOT || e->base == REF)
 		{ // &x.i, &px->i
-			if (e->e1->base == CALL || 
+			if (e->e1->base == CALL ||
 			    e->e1->base == G_CALL)
 				return 0;
                         // a sorry requested by directed instantiation
                         if ( e->mem->base != DOT && e->mem->base != REF )
                                 error('s',"address of boundM (&%n%k%n) as actualYA",e->e1,e->base,e->mem);
-			e = Pexpr(e->mem);	
+			e = Pexpr(e->mem);
 			++mbr;
 		}
 		Pname an = Pname(e);
@@ -3034,18 +3034,18 @@ suitable_const_expr(Pname n)
       		if (an->base != NAME) return 0;
 		if (an->n_sto == STATIC) return -3; // explicit static
       		if (an->n_stclass == STATIC || mbr) return 1;
-		if (an->tp->base == FCT && 
+		if (an->tp->base == FCT &&
 			Pfct(an->tp)->f_static &&
-			Pfct(an->tp)->memof ) 
+			Pfct(an->tp)->memof )
 				return 1; // T (x::*)()
       		return 0;
     	}
   	case NAME:
     	{
       		Pname an = Pname(n->n_initializer);
-      		if (an->n_stclass == STATIC && 
+      		if (an->n_stclass == STATIC &&
  			(an->tp->base == VEC ||
-		   	(an->tp->b_const && 
+		   	(an->tp->b_const &&
 		            an->n_evaluated))) // const
 				return 1;
       		return 0;
@@ -3061,10 +3061,10 @@ suitable_const_expr(Pname n)
   	}
 }
 
-static int 
-const_formal_hack(Pname n) 
+static int
+const_formal_hack(Pname n)
 { /* templ_inst::bind_formals sets b_const in expr parameters.
-   * this break type-checking for binding of formals to insts.  
+   * this break type-checking for binding of formals to insts.
    * simply not setting it, though, is no answer since the
    * instantiated formal should be handled as a const
    * hence, this ``elegant'' hack ... */
@@ -3087,7 +3087,7 @@ const_formal_hack(Pname n)
 			return 0;
     		}
   		case PTR:
-    		{ 
+    		{
 			Pptr b = Pptr(n->tp);
 			if (b->b_const == 2) return 1;
 			return 0;
@@ -3111,52 +3111,52 @@ make_formal_name(char *fns, char *ins)
     return result;
 }
 
-void 
+void
 templ_inst::bind_formals()
 /* Bind the formals to the types passed in as the actuals, for the
  * instantiations, bind the non-type names to their expressions. */
-{ 
+{
   	Pexpr actual;
   	Plist formal;
-  
+
   	for (formal = inst_formals, actual = actuals;
-       		formal && actual; 
+       		formal && actual;
 		formal = formal->l, actual = actual->e2)
         {
     	switch (formal->f->n_template_arg) {
       		case template_type_formal:
 		{
 	  		Ptype t = non_template_arg_type(Pbase(actual->e1->tp));
-			if (t->base == VEC) { 
- 			        // handle X<char[]> 
+			if (t->base == VEC) {
+ 			        // handle X<char[]>
       				Pvec v = Pvec(t);
-      				if(v->dim == 0 && v->size == 0) 
+      				if(v->dim == 0 && v->size == 0)
 				    error("actual vectorZ%t must include dimension",actual->e1->tp);
 			}
 	  		formal->f->tp = t;
 	  		PERM(formal->f->tp);
 	  		break;
 		}
-	
+
       		case template_expr_formal:
 		{
 	  		actual->e1 = actual->e1->typ(gtbl);
 
 			// insure that T* == T[]
 			Ptype t = actual->e1->tp;
-			if (t->base == VEC && 
+			if (t->base == VEC &&
 			    formal->f->tp->base == PTR)
 				t=new ptr(PTR,Pvec(t)->typ);
 
 	  		if (formal->f->tp->check(t,0)) {
 				// const shouldn't be a problem for objects
-				if (const_problem && 
+				if (const_problem &&
 					t->is_ptr_or_ref()==0 &&
 					formal->f->tp->is_ptr_or_ref()==0)
-						; 
-				else 
+						;
+				else
 				if (!const_formal_hack(formal->f))
-				{	
+				{
 	    				error("YA mismatch:X %t for formal %n, not %t",
 		  		    	     formal->f->tp, formal->f, actual->e1->tp);
 					error('i',"cannot recover from previous errors");
@@ -3195,14 +3195,14 @@ templ_inst::bind_formals()
 		    		error("YA for formal %s: address of static identifier",formal->f->string);
 				break;
 			}
-			
+
 	  		if (g) g->n_key = 0;
 	  		break;
 		}
-	
+
       		default: error ('i', "badY formal");
       		}
-  
+
   	}
 
   	// now that the formals are bound, compute the instantiation string
@@ -3211,13 +3211,13 @@ templ_inst::bind_formals()
   	for (formal=inst_formals; formal; formal=formal->l)
     		if (formal->f->n_template_arg_string)
 			error('i', "attempt to bind aYZ multiple times");
-    		else 
+    		else
       			formal->f->n_template_arg_string = make_formal_name(formal->f->string,tname->string);
 }
 
-void 
+void
 funct_inst::bind_formals()
-{ /* bind formal parameters to the actual type arguments 
+{ /* bind formal parameters to the actual type arguments
    * generate the mangled name for this instantiation */
 // error('d',"funct_inst::bind_formals: %n status: %d", tname,status );
 	int count = def->get_formals_count();
@@ -3229,7 +3229,7 @@ funct_inst::bind_formals()
 	/* this will make `bind_formal' faster ... */
 // error('d',"\tfunct_inst::bind_formals: formal: %n", formal->f);
 		Pbinding p = binding;
-		for (int i=0; i<count; ++p,++i) 
+		for (int i=0; i<count; ++p,++i)
 		{
 // error('d',"\tfunct_inst::bind_formals: p: %n", p->param );
 			if (strcmp(formal->f->string,p->param->string)==0)
@@ -3237,17 +3237,17 @@ funct_inst::bind_formals()
 // error('d',"\tfunct_inst::bind_formals: match !! tp: %t\n", p->typ);
 
 				Ptype t = p->typ;
-				if (t->base == ZTYPE) 
+				if (t->base == ZTYPE)
 					t = int_type;
 
 				if (t->b_const != 0) {
 					if (t->base==PTR || t->base==RPTR) {
-						Pptr pt = new ptr(t->base,0); 
+						Pptr pt = new ptr(t->base,0);
 						*pt = *(Pptr(t));
 						pt->b_const = 0;
 						t = pt;
 					} else {
-						Pbase bt = new basetype(t->base,0); 
+						Pbase bt = new basetype(t->base,0);
 						*bt = *(Pbase(t));
 						bt->b_const = 0;
 						t = bt;
@@ -3259,7 +3259,7 @@ funct_inst::bind_formals()
 			}
 		}
 	}
-	
+
   	// now compute the instantiation string
   	tname->string = instantiation_string();
 
@@ -3275,13 +3275,13 @@ funct_inst::bind_formals()
 }
 
 void
-templ_inst::explicit_inst() 
+templ_inst::explicit_inst()
 {
    	// copy the formals :: need to instantiate string
-    	name_list dummy_formal(0,0); 
+    	name_list dummy_formal(0,0);
     	Plist last = &dummy_formal;
-      
-    	for (Plist formal=def->formals; formal; formal=formal->l) 
+
+    	for (Plist formal=def->formals; formal; formal=formal->l)
 	{
       		Pname copy_name = new name("");
       		*copy_name = *formal->f;
@@ -3289,7 +3289,7 @@ templ_inst::explicit_inst()
       		last = last->l = new name_list(copy_name,0);
     	}
     	inst_formals = dummy_formal.l;
-  
+
   	bind_formals();
         Pclass cl = tname->tp->classtype();
 	cl->class_base = INSTANTIATED;
@@ -3299,7 +3299,7 @@ templ_inst::explicit_inst()
         Pktab tb = cl->k_tbl->k_next;
         if (tb == 0)
                 tb = Gtbl;
-        else 
+        else
         if ( tb->k_id == TEMPLATE )
                 tb = tb->k_next;
         namep =  insert_type(tname,tb,cl->csu);//SYM
@@ -3314,11 +3314,11 @@ templ_inst::explicit_inst()
 // Expose the non-type parameter names so that they are visible during decl
 // processing. Conflicting global names are hidden, so that they are not
 // found.
-void 
+void
 basic_inst::expose_parameter_names() {
   if (hidden_globals)
     error ('i', "an expose without a hide of global names") ;
-  
+
   for (Plist formal = inst_formals ; formal  ; formal = formal->l)
     if (formal->f->n_template_arg == template_expr_formal) {
       // Hide any visible globals
@@ -3338,9 +3338,9 @@ basic_inst::expose_parameter_names() {
 
 // Hide the non-type parameter names after an instantiation, and restore any
 // globals that may have been hidden during the process.
-void 
+void
 basic_inst::hide_parameter_names() {
-// error('d',"hide_parameter_names()"); 
+// error('d',"hide_parameter_names()");
   for (Plist formal = inst_formals ; formal  ; formal = formal->l)
     if (formal->f->n_template_arg == template_expr_formal) {
       formal->f->n_key = HIDDEN ;
@@ -3352,33 +3352,33 @@ basic_inst::hide_parameter_names() {
 
 // Primitives for saving and restoring the compilation state around a template
 // instantiation. It also maintains the stack of template instantiations.
-void 
+void
 basic_inst::save_state(Pname p)  {
   if (next_active) error ('i', "circular instantiation of a template") ;
   context.save() ;
   if (basic_inst::head)
     basic_inst::head->hide_parameter_names() ;
-  next_active = basic_inst::head; 
+  next_active = basic_inst::head;
   basic_inst::head = this;
   context.init() ;
   Cdcl = p; Cstmt = 0;
   curr_file = (Cdcl) ? Cdcl->where.file : 0;
   expose_parameter_names() ;
-} 
+}
 
-void 
+void
 basic_inst::restore_state() {
   context.restore() ;
   hide_parameter_names() ;
   basic_inst::head = next_active ; next_active = 0;
   if (basic_inst::head)
     basic_inst::head->expose_parameter_names() ;
-} 
+}
 
 // Copy over the class definition subtree starting from COBJ down to the
 // CLASSDEF node. This minimal subtree has to exist during syntax analysis,
 // and already contains pointers into it.
-void 
+void
 templ_inst::kludge_copy(Pbase pbc)
 {
   // copy just the COBJ ->b_name NAME ->tp CLASS path for now, note that the
@@ -3390,14 +3390,14 @@ templ_inst::kludge_copy(Pbase pbc)
 
   if ((pb->base != COBJ) || (pbc->base != COBJ))
     error('i',"templ_inst::kludge_copy:(pb %k,pbc %k) cobjX",pb->base,pbc->base);
-  
+
   *pb = *pbc ;
   pb->b_name = save_b_name ;
   *pb->b_name = *pbc->b_name ;
   pb->b_name->tp = save_tp ;
   *Pclass(pb->b_name->tp) = *Pclass(pbc->b_name->tp) ;
   Pclass(pb->b_name->tp)->class_base = INSTANTIATED ;
-// ::error('d',"kludge_copy: %n", pb->b_name); 
+// ::error('d',"kludge_copy: %n", pb->b_name);
 }
 
 
@@ -3406,8 +3406,8 @@ static Pbase cobj_node ;
 static Pname  cname_node ;
 static Pclass class_node ;
 static Pfct fct_node;
-	     
-static void 
+
+static void
 syntax_tree_copy_hook(void *,
 			     Pnode &,
 			     node_class,
@@ -3421,7 +3421,7 @@ syntax_tree_copy_hook(void *,
 
 
 // create a copy of the expression tree
-static Pnode 
+static Pnode
 copy_syntax_tree(Pnode n, int no_types = 0) {
   pointer_hash       cht(default_copy_hash_size) ;
   tree_copy_info  info ;
@@ -3430,7 +3430,7 @@ copy_syntax_tree(Pnode n, int no_types = 0) {
   return n ;
 }
 
-bool 
+bool
 templ_inst::copy_hook(Pnode &node)
 { // hook to perform the copying of the pre-allocated class subtree
   	switch (node->base) {
@@ -3448,14 +3448,14 @@ templ_inst::copy_hook(Pnode &node)
 
     			if (node == Pbase(def->namep->tp)->b_name) {
       				*cname_node= *Pname(node);
-      				node = cname_node;		  
+      				node = cname_node;
     			}
     			break;
-  		
+
 		case CLASS:
     			if (node == class_node) return false;
     			if (node == Pbase(def->namep->tp)->b_name->tp) {
-				if (class_node==0) return false; 
+				if (class_node==0) return false;
       				*class_node = *Pclass(node);
       				node = class_node;
     			}
@@ -3465,7 +3465,7 @@ templ_inst::copy_hook(Pnode &node)
 }
 
 /* This hook function used during a class copy.  */
-static void 
+static void
 copy_hook(void /* Ptempl_inst */ *p, Pnode &node,
 		      node_class, tree_node_action &action,
 		      int& never_see_again)
@@ -3473,10 +3473,10 @@ copy_hook(void /* Ptempl_inst */ *p, Pnode &node,
   	action = (Ptempl_inst(p)->copy_hook(node) ? tna_continue : tna_stop ) ;
   	never_see_again = (action != tna_stop);
   	return;
-}      
+}
 
-static void 
-f_copy_hook(void *p, Pnode &node, node_class, 
+static void
+f_copy_hook(void *p, Pnode &node, node_class,
 	tree_node_action &action, int& never_see_again)
 { // 3.1/4.0: should be merged with global copy_hook
 // error('d',"f_copy_hook");
@@ -3484,10 +3484,10 @@ f_copy_hook(void *p, Pnode &node, node_class,
   	action = (Pfunct_inst(p)->f_copy_hook(node) ? tna_continue : tna_stop);
   	never_see_again = (action != tna_stop);
   	return;
-}      
+}
 
 // hook to perform the copying of the pre-allocated class subtree
-bool 
+bool
 funct_inst::f_copy_hook(Pnode &node)
 {
 // error('d',"funct_inst::f_copy_hook: %k %d", node->base , node);
@@ -3506,24 +3506,24 @@ funct_inst::f_copy_hook(Pnode &node)
 	return true;
 }
 
-void 
+void
 establish_class_subtree_correspondence(pointer_hash &h, Pname key_tname,
-					    Pname value_tname) 
+					    Pname value_tname)
 {
-  h[int(key_tname)] = int(value_tname) ;
-  h[int(key_tname->tp)] = int(value_tname->tp) ;
-  h[int(Pbase(key_tname->tp)->b_name)] =
-    int(Pbase(value_tname->tp)->b_name) ;
-  h[int(Pbase(key_tname->tp)->b_name->tp)] =
-    int(Pbase(value_tname->tp)->b_name->tp) ;
+  h[long(key_tname)] = long(value_tname) ;
+  h[long(key_tname->tp)] = long(value_tname->tp) ;
+  h[long(Pbase(key_tname->tp)->b_name)] =
+    long(Pbase(value_tname->tp)->b_name) ;
+  h[long(Pbase(key_tname->tp)->b_name->tp)] =
+    long(Pbase(value_tname->tp)->b_name->tp) ;
 }
 
-Pcons 
+Pcons
 make_ref_copy(pointer_hash &h, tree_copy_info &info, Pcons old_templ_refs)
 {
   cons dummy(0,0), *last = &dummy ;
   for (Pcons pc = old_templ_refs ; pc ; pc = pc->cdr) {
-    
+
     Ptempl_inst t = Ptempl_inst(pc->car) ;
     Pexpr   dummy = new expr(ELIST, 0, 0);
     elist  list(dummy);
@@ -3540,11 +3540,11 @@ make_ref_copy(pointer_hash &h, tree_copy_info &info, Pcons old_templ_refs)
       list.add(new expr(ELIST, Pexpr(root), 0)) ;
     }
     Pexpr new_actuals = list.head->e2 ;
-    
+
     // get one if it exists, create one otherwise.
     Ptempl_inst  treal = t->def->get_inst(new_actuals, t) ;
     Pname new_tname = treal->tname ;
-    
+
     last = last->cdr = new cons(treal,0);
 
     establish_class_subtree_correspondence(h, t->tname, new_tname) ;
@@ -3560,8 +3560,8 @@ action is similar to the normal tree copy operation; it would normally have
 been done during the syntax phase, that produced the tree, but since there
 isn't one, for the instantiated body, it must be done here.
 
-*/					     
-Pcons 
+*/
+Pcons
 basic_inst::ref_copy(pointer_hash &h, tree_copy_info &info, Pcons old_templ_refs)
 {
   expose_parameter_names() ;
@@ -3571,7 +3571,7 @@ basic_inst::ref_copy(pointer_hash &h, tree_copy_info &info, Pcons old_templ_refs
 }
 
 #if 0
-static bool 
+static bool
 is_forward_instantiation(Pbase b_base, Pbase f_base)
 {
   return bool(b_base->b_name->tp->defined && f_base->b_name->tp->defined) ;
@@ -3599,39 +3599,39 @@ is_forward_instantiation(Pbase b_base, Pbase f_base)
 * instantiation.							     *
 * 									     *
 *****************************************************************************/
-Ptempl_inst  
-templ_inst::class_copy(Pcons &templ_refs, bool recopy) 
+Ptempl_inst
+templ_inst::class_copy(Pcons &templ_refs, bool recopy)
 {
-		
+
   // associate the formals with their types, and their expressions
   if (recopy) {
     // remove the class def node from the table, so that it's attributes are
-    // copied. 
-    corr->del(int(Pbase(def->namep->tp)->b_name->tp)) ;
-    corr->del(int(Pbase(def->namep->tp)->b_name)) ;
-    corr->del(int(def->namep->tp)) ;
-    
-    corr->del(int(tname->tp)) ;
-    corr->del(int(Pbase(tname->tp)->b_name)) ;
-    corr->del(int(Pbase(tname->tp)->b_name->tp)) ;
+    // copied.
+    corr->del(long(Pbase(def->namep->tp)->b_name->tp)) ;
+    corr->del(long(Pbase(def->namep->tp)->b_name)) ;
+    corr->del(long(def->namep->tp)) ;
+
+    corr->del(long(tname->tp)) ;
+    corr->del(long(Pbase(tname->tp)->b_name)) ;
+    corr->del(long(Pbase(tname->tp)->b_name->tp)) ;
   }else corr = new pointer_hash(default_copy_hash_size) ;
-  
+
   { // copy the formals & install them in the correspondence table
-    name_list dummy_formal(0,0) ; 
+    name_list dummy_formal(0,0) ;
     Plist last = &dummy_formal ;
-      
+
     for (Plist formal = def->formals ; formal ; formal = formal->l) {
       Pname copy_name = new name("") ;
       *copy_name = *formal->f ;
       copy_name->n_tbl_list = 0 ;
       last = last->l = new name_list(copy_name, 0) ;
-      (*corr)[int(formal->f)] = (int)copy_name ;
+      (*corr)[long(formal->f)] = (long)copy_name ;
     }
     inst_formals = dummy_formal.l ;
   }
-  
+
   bind_formals() ;
-  if ( ! recopy ) { 
+  if ( ! recopy ) {
     // Pname nnn = k_find_name(tname->string,Ctbl,0);
     Pname nnn = k_find_name(tname->string,Gtbl,HIDDEN);
     if ( nnn && nnn->base==TNAME ) {
@@ -3642,13 +3642,13 @@ templ_inst::class_copy(Pcons &templ_refs, bool recopy)
 	  tname->string) ;
      }
   }
-  
-  { 
+
+  {
     tree_copy_info  info ;
     info.node_hook = ::copy_hook ;
     info.hook_info = this ;
-    
-    (*corr)[int(def->namep)] = int(tname) ; // make the tnames correspond
+
+    (*corr)[long(def->namep)] = long(tname) ; // make the tnames correspond
 
     templ_refs = ref_copy(*corr, info, templ_refs) ;
     Pnode root = def->basep ;	// start the copy at the cobj node
@@ -3670,7 +3670,7 @@ templ_inst::class_copy(Pcons &templ_refs, bool recopy)
     Pktab tb = class_node->k_tbl->k_next;
     if (tb == 0)
         tb = Gtbl;
-    else 
+    else
     if ( tb->k_id == TEMPLATE )
         tb = tb->k_next;
     namep =  insert_type(tname,tb,class_node->csu);//SYM
@@ -3678,7 +3678,7 @@ templ_inst::class_copy(Pcons &templ_refs, bool recopy)
   }
   else class_node->defined &= ~(DEFINED|SIMPLIFIED) ;
   namep->tp = cobj_node;
-    
+
   class_node->modify_inst_names(cname_node->string) ;
 
    // don't understand why this is necessary ...
@@ -3694,7 +3694,7 @@ templ_inst::class_copy(Pcons &templ_refs, bool recopy)
 This hook function is responsible for the replacement of references to
 expression when copying function bodies
 */
-static void 
+static void
 function_copy_hook(void *current_templ_inst, Pnode &node, node_class,
 			     tree_node_action &action, int& never_see_again)
 {
@@ -3702,7 +3702,7 @@ function_copy_hook(void *current_templ_inst, Pnode &node, node_class,
 
   switch (node->base) {
   case NAME:
-    { 
+    {
       if(node == sta_name) {
 	  action = tna_stop;
 	  return;
@@ -3711,7 +3711,7 @@ function_copy_hook(void *current_templ_inst, Pnode &node, node_class,
       Pname f =  0 ;
       if (s && (*s == '$') &&
 	  (f = Ptempl_inst(current_templ_inst)->get_parameter(s+1))) {
-	      if(Pname(node)->n_list) 
+	      if(Pname(node)->n_list)
 		  error ('i', "n_list set in tree template formal.");
 	      node = copy_syntax_tree(Pname(f)->n_initializer) ;
 	      action = tna_stop ;
@@ -3725,34 +3725,34 @@ function_copy_hook(void *current_templ_inst, Pnode &node, node_class,
   }
 }
 
-Pname 
+Pname
 templ_inst::function_copy(Pfunt fnt, Pcons &templ_refs)
-/* 
+/*
  * Create a copy of a function member, as part
- * of the instantiation of a function body. 
- * The correspondence table is first initialized 
- * with the contents of the correspondence table 
- * used to instantiate the class. 
+ * of the instantiation of a function body.
+ * The correspondence table is first initialized
+ * with the contents of the correspondence table
+ * used to instantiate the class.
  * Copying is initiated in this context */
 {
 	pointer_hash fcorr(*corr); // initialize with old hash table
-  
-    	{     
-    	tree_copy_info info;
-    	Pnode root = fnt->fn; 
 
-    /* establish a correspondence between the formals used 
-     * for the class template, and the formals used for the 
-     * function template, all references to the function 
-     * template formals will be replaced by references to 
-     * the instantiated class template formals after the 
+    	{
+    	tree_copy_info info;
+    	Pnode root = fnt->fn;
+
+    /* establish a correspondence between the formals used
+     * for the class template, and the formals used for the
+     * function template, all references to the function
+     * template formals will be replaced by references to
+     * the instantiated class template formals after the
      * copy has been completed */
-    
+
      for (Plist fformal = fnt->formals, cformal = inst_formals;
 	  fformal; fformal = fformal->l, cformal = cformal->l)
      {
-	fcorr[int(fformal->f)] = int(cformal->f) ;
-	if (fcorr[int(fformal->f)] != int(cformal->f))
+	fcorr[long(fformal->f)] = long(cformal->f) ;
+	if (fcorr[long(fformal->f)] != long(cformal->f))
 		error ('i', "templ_inst::fuction_copy: hash table bug");
       }
 
@@ -3760,12 +3760,12 @@ templ_inst::function_copy(Pfunt fnt, Pcons &templ_refs)
       info.hook_info = this;
 
       templ_refs = ref_copy(fcorr,info,templ_refs);
-      if (fcorr[int(def->namep)] != int(tname))
+      if (fcorr[long(def->namep)] != long(tname))
     	  error ('i', "Y to instantiationTN correspondence is missing");
-    
+
       copy_tree(root,info,&fcorr);
       return Pname(root);
-    
+
     }
 }
 
@@ -3784,18 +3784,18 @@ templ_inst::function_copy(Pfunt fnt, Pcons &templ_refs)
 *****************************************************************************/
 Pclass current_instantiation = 0 ;
 
-void 
-templ_inst::instantiate_match(Ptempl_inst match) { 
+void
+templ_inst::instantiate_match(Ptempl_inst match) {
 	Pbase pb = Pbase(match->tname->tp) ;
   	kludge_copy(pb) ;
   	forward = match ; // Note that template was matched
 }
 
-void 
-print_nested_typedef(Pname n, Pclass cl) 
-{ /* need to print a nested typedef now because it serves as a parameter 
-   * to a class being instantiated -- mark it as printed within its 
-   * enclosing class so it is not subsequently printed a second time 
+void
+print_nested_typedef(Pname n, Pclass cl)
+{ /* need to print a nested typedef now because it serves as a parameter
+   * to a class being instantiated -- mark it as printed within its
+   * enclosing class so it is not subsequently printed a second time
    */
 	for (Pname nn = cl->mem_list; nn; nn = nn->n_list) {
 		if ( nn->base != TNAME ) continue;
@@ -3814,14 +3814,14 @@ Ptempl_inst
 templ_inst::instantiate(bool reinstantiate) {
 // ::error('d', "templ_inst::instantiate(%d) tname: %n namep: %n", reinstantiate, tname, namep);
 
-	if ( 	(dtpt_opt && 
-		curloc.file==first_file && 
-//		dummyinst==0 && 
-		notinstflag==0 && 
+	if ( 	(dtpt_opt &&
+		curloc.file==first_file &&
+//		dummyinst==0 &&
+		notinstflag==0 &&
 		(tname==righttname || tname && righttname && !strcmp(tname->string, righttname->string))) /*||
 		matchflag==1*/
-	) { 
-		dummyinst=this;	
+	) {
+		dummyinst=this;
 //		matchflag=0;
 	}
 
@@ -3830,7 +3830,7 @@ templ_inst::instantiate(bool reinstantiate) {
 	Templ_type ct = Ptclass(Pbase(tname->tp)->b_name->tp)->class_base;
   	if (! reinstantiate) {
     		switch (ct) {
-    			case INSTANTIATED: 
+    			case INSTANTIATED:
     				return this;
     			case UNINSTANTIATED:
       				break;
@@ -3838,16 +3838,16 @@ templ_inst::instantiate(bool reinstantiate) {
     			case CL_TEMPLATE:	// the canonical template class
     			case FCT_TEMPLATE:	// the canonical template class
 			case BOUND_TEMPLATE:
-    			default: 
+    			default:
     				error ('i',"attempt to instantiate a non-YC %n",namep);
     		}
   		status = class_instantiated;
 
-    		// Check whether the template has already 
+    		// Check whether the template has already
 		// been instantiated.  if so, use it.
     		forward_template_arg_types(def->formals, actuals);
     		Ptempl_inst match = def->get_match(actuals, this, true);
-    
+
     		if (match || (match = class_copy(templ_refs, false))) {
 //			if (dummyinst==this) matchflag=1;
       			instantiate_match(match);
@@ -3859,33 +3859,33 @@ templ_inst::instantiate(bool reinstantiate) {
   	Pbase pb = Pbase(tname->tp);
 
 	if (ansi_opt) {
-		TOK csu = Ptclass(Pbase(tname->tp)->b_name->tp)->csu; 
+		TOK csu = Ptclass(Pbase(tname->tp)->b_name->tp)->csu;
 		fprintf(out_file, "%s %s;\n", csu == UNION || csu == ANON ? "union" : "struct", tname->string);
 	}
 
   	// Save the state around decl processing
-  	{ 
+  	{
 	save_state(def->namep);
-    
+
     	if (def->open_instantiations++ > MAX_INST_DEPTH) {
       		error ("an infinite instantiation sequence was initiated");
       		def->open_instantiations--;
       		return this;
     	}
 
-    	// Mark the class as instantiated to avoid circular instantiations. 
+    	// Mark the class as instantiated to avoid circular instantiations.
     	Pclass(pb->b_name->tp)->class_base = INSTANTIATED;
 
     	// if it is a forward reference, rely on the usual compilation to
     	// provide an error message, if indeed it is an error, and not a
-    	// benign forward reference such as: friend class foo<X,Y> 
-    	if (def->basep->b_name->tp->defined) 
+    	// benign forward reference such as: friend class foo<X,Y>
+    	if (def->basep->b_name->tp->defined)
 	{
 		// need to reset the `where' of the instantiation to that of definitionf
 		pb->b_name->where = def->basep->b_name->where;
 
-      		/* Put out the typedefs for the template parameters 
-		 * do this before the call to name::dcl below, 
+      		/* Put out the typedefs for the template parameters
+		 * do this before the call to name::dcl below,
 		 * since dcl processing will emit c declarations
 		 * that make use of the type
                  */
@@ -3894,7 +3894,7 @@ templ_inst::instantiate(bool reinstantiate) {
 				Pclass cl;
 				Pname n = Pbase(formal->f->tp)->b_name;
 				if (n->base == TNAME && n->tpdef &&
-				   (cl = n->tpdef->in_class) && cl->c_body == 1) 
+				   (cl = n->tpdef->in_class) && cl->c_body == 1)
 					print_nested_typedef(n,cl);
 			}
 			if (formal->f->n_template_arg == template_expr_formal)
@@ -3910,13 +3910,13 @@ templ_inst::instantiate(bool reinstantiate) {
 		tempdcl = 1;
 		cc->stack(); cc->cot=0; cc->not4=0; cc->tot=0; cc->c_this=0;
 		curr_inst=this;
-      		if (!((pb->b_name->dcl(gtbl,EXTERN) == 0) || error_count)) 
+      		if (!((pb->b_name->dcl(gtbl,EXTERN) == 0) || error_count))
 		{
 			pb->b_name->simpl();
-		        Ptype pt = pb->b_name->tp;	
+		        Ptype pt = pb->b_name->tp;
 			if (pt->base != CLASS)
 	  			error('i',"templ_inst::instantiate(%k),CX",pt->base);
-	
+
 			Pclass cl = Pclass(pt);
 			current_instantiation = cl;
 			pb->b_name->dcl_print(0);
@@ -3946,7 +3946,7 @@ templ_inst::instantiate(bool reinstantiate) {
 #endif
 	}
       }
-      
+
     /* this does not fit in with cfront's lazy print strategy
     // dcl_print the member functions, so that they can be referenced
     int i = 0 ;
@@ -3955,7 +3955,7 @@ templ_inst::instantiate(bool reinstantiate) {
       if ((fn->base == NAME) && (fn->tp->base == FCT))
 	fn->dcl_print(0) ;
     */
-    
+
     restore_state() ;
     def->open_instantiations-- ;
   }
@@ -3966,27 +3966,27 @@ templ_inst::instantiate(bool reinstantiate) {
 
 templ_state::templ_state() {
 // error('d',"templ_state::templ_state");
-	param_end = templp->param_end; 
-	params = templp->params; 
-	templ_refs = templp->templ_refs; 
-	friend_templ_refs = templp->friend_templ_refs; 
-	last_cons = templp->last_cons; 
+	param_end = templp->param_end;
+	params = templp->params;
+	templ_refs = templp->templ_refs;
+	friend_templ_refs = templp->friend_templ_refs;
+	last_cons = templp->last_cons;
 	owner = templp->owner;
 	// has_expr_formals = templp->has_expr_formals;
 }
 
 templ_state::~templ_state() {
 // error('d',"templ_state::~templ_state");
-	templp->param_end = param_end; 
-	templp->params = params; 
-	templp->templ_refs = templ_refs; 
-	templp->friend_templ_refs = friend_templ_refs; 
-	templp->last_cons = last_cons; 
+	templp->param_end = param_end;
+	templp->params = params;
+	templp->templ_refs = templ_refs;
+	templp->friend_templ_refs = friend_templ_refs;
+	templp->last_cons = last_cons;
 	templp->owner = owner;
 	// templp->has_expr_formals = has_expr_formals;
 }
 
-templ::templ(Plist parms, Pname p) 
+templ::templ(Plist parms, Pname p)
 // template <class T> class X {T t; public: T foo() {return t;}};
 {
 // ::error('d',"templ::templ(%d %n)", parms, p );
@@ -3996,7 +3996,7 @@ templ::templ(Plist parms, Pname p)
 	namep = p; // 'X'
   	basep = Pbase(namep->tp) ;
 
-	if (basep->base != COBJ) 
+	if (basep->base != COBJ)
             error("YC%n --%n already declared asTdef (%t) ",p,p,p->tp);
 
 	Ptype t = basep->b_name->tp;
@@ -4005,18 +4005,18 @@ templ::templ(Plist parms, Pname p)
   	cl->class_base = CL_TEMPLATE;
   	defined = ((t->defined & DEF_SEEN) ? true : false);
   	if (defined) members = cl->mem_list;
-  
+
   	PERM(namep); PERM(namep->tp);
-  
+
 	// Chain on to the list of templates for the compilation.
   	next = templp->list; templp->list = this;
 }
 
 templ_inst::templ_inst (Pexpr act, Ptempl owner)
-/* 
- * Set up the basetype for the class, so that nodes that 
- * need to point to it during syntax processing can do so. 
- * These objects are merely place-holders during syntax 
+/*
+ * Set up the basetype for the class, so that nodes that
+ * need to point to it during syntax processing can do so.
+ * These objects are merely place-holders during syntax
  * analysis, and are actually filled in during
  * the copy phase of instantiation.
  */
@@ -4034,14 +4034,14 @@ templ_inst::templ_inst (Pexpr act, Ptempl owner)
 	if (cl->k_tbl) c->k_tbl = cl->k_tbl; // SYM
 
   	Pbase(tname->tp)->b_name->tp = c;
-  	PERM(tname); PERM(tname->tp); 
+  	PERM(tname); PERM(tname->tp);
 	PERM(Pbase(tname->tp)->b_name);
 	PERM(Pbase(tname->tp)->b_name->tp);
 
   	// initialize member list so set_scope can do the right thing
 	// SYM archaic
   	c->mem_list = def->classtype()->mem_list;
-  
+
   	actuals = act;
   	next = owner->insts;
   	owner->insts = this;
@@ -4062,7 +4062,7 @@ templ_inst::templ_inst (Pexpr act, Ptempl owner, TOK csu)
         c->k_tbl->k_id = CLASS;
 
   	Pbase(tname->tp)->b_name->tp = c;
-  	PERM(tname); PERM(tname->tp); 
+  	PERM(tname); PERM(tname->tp);
 	PERM(Pbase(tname->tp)->b_name);
 	PERM(Pbase(tname->tp)->b_name->tp);
 
@@ -4070,14 +4070,14 @@ templ_inst::templ_inst (Pexpr act, Ptempl owner, TOK csu)
 	// SYM archaic
         // ??????????????? XXXXX
   	// c->mem_list = def->classtype()->mem_list;
-  
+
   	actuals = act;
   	next = owner->insts;
   	owner->insts = this;
 }
 
 funct_inst::funct_inst (Pexpr act, Pfunt owner)
-/* 
+/*
  * mumble
  */
 {
@@ -4090,11 +4090,11 @@ funct_inst::funct_inst (Pexpr act, Pfunt owner)
 
   	next = owner->insts;
   	owner->insts = this;
-  	PERM(tname); PERM(tname->tp); 
+  	PERM(tname); PERM(tname->tp);
 }
 
 templ_classdef::templ_classdef(Ptempl_inst i)
-	: classdef(CLASS) 
+	: classdef(CLASS)
 {
   inst = i;
   class_base = UNINSTANTIATED;
@@ -4152,58 +4152,58 @@ function_template::function_template(Plist params,Pname n)
   	PERM(n); PERM(n->tp);
 }
 
-Pname 
+Pname
 templ_inst::get_parameter(char *s) {
-  	for (Plist formal=inst_formals; formal; formal=formal->l) 
+  	for (Plist formal=inst_formals; formal; formal=formal->l)
     		if (strcmp(formal->f->string,s)== 0)
       			return formal->f;
   	return 0;
 }
 
 Pfunct_inst
-funct_inst::tfct_copy(Pcons &templ_refs, bool recopy) 
+funct_inst::tfct_copy(Pcons &templ_refs, bool recopy)
 {
 // error('d',"%n->tfct_copy(recopy: %d)",tname,recopy);
 
   	// associate the formals with their types, and their expressions
   	if (recopy) {
-    		// remove the function def node from the table, 
-    		// so that it's attributes are copied. 
-    		corr->del(int(def->fn));
-    	 	corr->del(int(tname));
+    		// remove the function def node from the table,
+    		// so that it's attributes are copied.
+    		corr->del(long(def->fn));
+    	 	corr->del(long(tname));
   	}
   	else corr = new pointer_hash(default_copy_hash_size) ;
-  
+
   	// copy the formals & install them in the correspondence table
-    	name_list dummy_formal(0,0); 
+    	name_list dummy_formal(0,0);
     	Plist last = &dummy_formal;
-      
+
     	for (Plist formal=def->formals; formal; formal=formal->l) {
       		Pname copy_name = new name("");
       		*copy_name = *formal->f;
       		copy_name->n_tbl_list = 0;
       		last = last->l = new name_list(copy_name, 0);
-      		(*corr)[int(formal->f)] = (int)copy_name;
+      		(*corr)[long(formal->f)] = (long)copy_name;
     	}
     	inst_formals = dummy_formal.l;
-  
+
   	bind_formals();
-  	if ( !recopy && gtbl->look(tname->string, 0)) {    
+  	if ( !recopy && gtbl->look(tname->string, 0)) {
     		// formal binding may result in detecting identical instantiations
     		Pfunct_inst ti = def->get_match(actuals, this, true);
     		if (ti) return ti;
 	    	error('i',"generatedY instanceN %s not unique",tname->string);
   	}
-  
+
  	tree_copy_info info;
       	info.node_hook = ::f_copy_hook;
       	info.hook_info = this;
 
-  	Pnode root = def->fn->tp; 
+  	Pnode root = def->fn->tp;
 	fct_node = Pfct(tname->tp);
 
  	// make the tnames correspond ???
- 	(*corr)[int(def->fn)] = int(tname); 
+ 	(*corr)[long(def->fn)] = long(tname);
 	templ_refs = ref_copy(*corr,info,templ_refs);
     	copy_tree(root,info,corr);
 	return 0;
@@ -4220,10 +4220,10 @@ funct_inst::instantiate(bool reinstantiate) {
 	Templ_type ft = Ptfct(tname->tp)->fct_base;
   	if (!reinstantiate) {
     		switch (ft) {
-    			case INSTANTIATED: 
-				if (	dtpt_opt && 
-					fdummyinst==0 && 
-					curloc.file==first_file && 
+    			case INSTANTIATED:
+				if (	dtpt_opt &&
+					fdummyinst==0 &&
+					curloc.file==first_file &&
 					tempdcl==0
 				)
 				{
@@ -4234,13 +4234,13 @@ funct_inst::instantiate(bool reinstantiate) {
 					current_fct_instantiation=0;
 				}
     				return;
-    			case UNINSTANTIATED: 
+    			case UNINSTANTIATED:
       				break;
     			case VANILLA:
-    			case CL_TEMPLATE:	
-    			case FCT_TEMPLATE:	
+    			case CL_TEMPLATE:
+    			case FCT_TEMPLATE:
 			case BOUND_TEMPLATE:
-    			default: 
+    			default:
     				error ('i',"attempt to instantiate a non-YF %n",namep);
     		}
   		status = function_instantiated;
@@ -4250,8 +4250,8 @@ funct_inst::instantiate(bool reinstantiate) {
 
 
 		// class template calls forward_template_arg_type()
-		// functions however only take ``type type'' 
-		for (Pexpr e = actuals; e; e = e->e2) 
+		// functions however only take ``type type''
+		for (Pexpr e = actuals; e; e = e->e2)
 			e->e1->tp = non_template_arg_type(Pbase(e->e1->tp));
 
 		Pfunct_inst dup;
@@ -4259,7 +4259,7 @@ funct_inst::instantiate(bool reinstantiate) {
 		{
 			// don't believe it should happen -- let's check
 			error('i',"FT %n already instantiated", namep);
-			return; 
+			return;
 		}
   	}
 	else tfct_copy(templ_refs, true);
@@ -4269,7 +4269,7 @@ funct_inst::instantiate(bool reinstantiate) {
 	// tname's ``where'' is at point of instantiation but the
 	// statements of the function are at the point of definition
         tname->n_oper = def->fn->n_oper;
-	tname->where = def->fn->where; 
+	tname->where = def->fn->where;
 
 	save_state(def->fn); // save state around decl processing
     	if (def->open_instantiations++ > MAX_INST_DEPTH) {
@@ -4278,7 +4278,7 @@ funct_inst::instantiate(bool reinstantiate) {
       		return;
     	}
 
-    	// Mark the function as instantiated to avoid circular instantiations. 
+    	// Mark the function as instantiated to avoid circular instantiations.
   	Ptfct ptf = Ptfct(tname->tp);
     	ptf->fct_base = INSTANTIATED;
 
@@ -4287,16 +4287,16 @@ funct_inst::instantiate(bool reinstantiate) {
 		Ptempl_inst(pc->car)->instantiate();;
 	}
 
-	if (reinstantiate && tname->n_table) 
+	if (reinstantiate && tname->n_table)
 		tname->n_table = 0;
 
-        if (fct_instantiation == 0) 
+        if (fct_instantiation == 0)
 		fct_instantiation = this;
 
 	fcurr_inst=this;
 
 	cc->stack(); cc->cot = 0; cc->not4 = 0; cc->tot = 0; cc->c_this = 0;
-	if (!((tname = tname->dcl(gtbl, EXTERN)) == 0) || error_count) 
+	if (!((tname = tname->dcl(gtbl, EXTERN)) == 0) || error_count)
 	{
 		fcurr_inst=this;
 		if (se_opt && tname->finst_body()==0)
@@ -4308,7 +4308,7 @@ funct_inst::instantiate(bool reinstantiate) {
 		if (fct_instantiation != this &&
 		    fct_instantiation->namep == namep) {
 // error('d',"fct_instantiation: %n",fct_instantiation->tname);
-			Pfct f = fct_instantiation->tname->fct_type(); 
+			Pfct f = fct_instantiation->tname->fct_type();
 			Pblock b = f->body;
 			f->body = 0;
 			current_fct_instantiation = f;
@@ -4323,7 +4323,7 @@ funct_inst::instantiate(bool reinstantiate) {
 				tname->fct_type()->body=b1;
 			current_fct_instantiation = 0;
 			f->body = b;
-		}	
+		}
 		current_fct_instantiation = Pfct(pt);
 
 		Pblock b;
@@ -4332,7 +4332,7 @@ funct_inst::instantiate(bool reinstantiate) {
 		if (se_opt && tname->finst_body()==0)
 			suppress_error--;
 
-		if (dtpt_opt && tname->finst_body()==0) { 
+		if (dtpt_opt && tname->finst_body()==0) {
 			b=tname->fct_type()->body;
 			tname->fct_type()->body=0;
 		}
@@ -4357,7 +4357,7 @@ funct_inst::instantiate(bool reinstantiate) {
 
 static int
 has_templ_arg( Pclass cl1, Ptclass cl2, Pbinding p, int& ni)
-{ /* should be able to meld these two instances of 
+{ /* should be able to meld these two instances of
    * has_templ_arg -- this is expediency for users
    * cl1: min(X<T1,T2>), cl2: min(X<int,double>)
    * need to bind T1 == int, T2 == double */
@@ -4368,7 +4368,7 @@ has_templ_arg( Pclass cl1, Ptclass cl2, Pbinding p, int& ni)
 	Plist formals = t->get_formals();
 	Pexpr actuals = cl2->inst->actuals;
 
-	for (; formals && actuals; formals=formals->l, actuals=actuals->e2) 
+	for (; formals && actuals; formals=formals->l, actuals=actuals->e2)
 	{
 		// get the associated actual type
 		Ptype at = actuals->e1->tp;
@@ -4383,7 +4383,7 @@ has_templ_arg( Pclass cl1, Ptclass cl2, Pbinding p, int& ni)
 
 		if ( i < ni ) { // previously bound
                         if(p[i].typ->check(at,0)) {
-                                if (!const_problem) 
+                                if (!const_problem)
 					return 0;
                         }
 			continue;
@@ -4392,7 +4392,7 @@ has_templ_arg( Pclass cl1, Ptclass cl2, Pbinding p, int& ni)
 		p[ni].param = formals->f;
 		p[ni++].typ = at;
 
-	} 
+	}
 
 	return 1;
 }
@@ -4405,7 +4405,7 @@ has_templ_arg( Ptclass cl1, Ptclass cl2, Pbinding p, int& ni)
 	Pexpr formals = cl1->inst->actuals;
 	Pexpr actuals = cl2->inst->actuals;
 
-	for (; formals && actuals; formals=formals->e2, actuals=actuals->e2) 
+	for (; formals && actuals; formals=formals->e2, actuals=actuals->e2)
 	{
 		// find any formal Type
 		Pexpr fe = formals->e1;
@@ -4426,7 +4426,7 @@ has_templ_arg( Ptclass cl1, Ptclass cl2, Pbinding p, int& ni)
 
 		if ( i < ni ) { // previously bound
                         if(p[i].typ->check(at,0)) {
-                                if (!const_problem) 
+                                if (!const_problem)
 					return 0;
                         }
 			continue;
@@ -4441,28 +4441,28 @@ has_templ_arg( Ptclass cl1, Ptclass cl2, Pbinding p, int& ni)
 }
 
 static bit
-formal_not_const(Pname nn) 
-/* called by is_ftempl-match if type::check sets const_problem: 
- * ok if problem is that formal is const 
+formal_not_const(Pname nn)
+/* called by is_ftempl-match if type::check sets const_problem:
+ * ok if problem is that formal is const
  * yes: could be made recursive if arg is nn->tp ... */
 {
 // error('d',"formal_not_const %n %t", nn, nn->tp);
-   
+
     Ptype t = nn->tp;
     bit cnst = t->tconst();
 
 loop:
-    if (cnst == 0) 
+    if (cnst == 0)
         // parallels type::check's behavior
 	if (t->base == PTR || t->base == RPTR) {
 		t = Pptr(t)->typ;
 		cnst = t->tconst();
 		goto loop;
-	} 
-	return cnst == 0; 
+	}
+	return cnst == 0;
 }
 
-static void 
+static void
 check_valid_formal_type(Ptype et) {
 	et = et->skiptypedefs();
 	switch( et->base ) {
@@ -4476,22 +4476,22 @@ check_valid_formal_type(Ptype et) {
 }
 
 Pslot*
-is_ftempl_match(Pexpr actuals, Pfunt ft) 
+is_ftempl_match(Pexpr actuals, Pfunt ft)
 {
 // error('d',"is_ftempl_match: %n", ft->fn);
 	int count = ft->get_formals_count();
 	Pslot* parray = new Pslot[count];
 	int ni=0;
 
-	Pfct f = ft->fn->fct_type();	
+	Pfct f = ft->fn->fct_type();
 	Pexpr e = actuals;
 	Pname nn = f->argtype;
 
 	// turn on special handling of base/derived
 // error('d',"template_hier : %d fn: %n", template_hier, ft->fn);
 	for( ; e; e=e->e2, nn=nn->n_list) {
-		if (nn == 0) { 
-			if (f->nargs_known==ELLIPSIS) 
+		if (nn == 0) {
+			if (f->nargs_known==ELLIPSIS)
 				{return parray;}
 			delete parray;
 			return 0;
@@ -4515,7 +4515,7 @@ is_ftempl_match(Pexpr actuals, Pfunt ft)
       			// ok: f(const T*,const int*); int *actual;
 		        if ( t->is_ptr_or_ref() != 0 &&
 			     et->is_ptr_or_ref() != 0 &&
-			     formal_not_const(nn)) 
+			     formal_not_const(nn))
 			{
 				delete parray;
 				return 0;
@@ -4526,7 +4526,7 @@ is_ftempl_match(Pexpr actuals, Pfunt ft)
 		        }
 		}
 
-		// handle things like formal: Type& actual: char* 
+		// handle things like formal: Type& actual: char*
 		// *** this should be recursive
 		int ptr_count = 0, ref_count = 0;
 		Ptype nt = nn->tp;
@@ -4535,11 +4535,11 @@ is_ftempl_match(Pexpr actuals, Pfunt ft)
 		if (nt->is_ref()) {
 			nt = Pptr(nt->skiptypedefs())->typ;
 		}
-		while(t=nt->is_ptr()) { 
-			++ptr_count; 
+		while(t=nt->is_ptr()) {
+			++ptr_count;
 			Pptr p = Pptr(t);
 			if (p->ptname) { ptm = p->ptname; break; }
-			nt = Pptr(t)->typ; 
+			nt = Pptr(t)->typ;
 		}
 
 		while(ptr_count-- && (t=et->is_ptr())) {
@@ -4551,12 +4551,12 @@ is_ftempl_match(Pexpr actuals, Pfunt ft)
 		Pname bn = ptm;
 		if (bn == 0) {
 			while(t=nt->is_ref()) { ++ref_count; nt = Pptr(t)->typ; }
-			while(ref_count-- && (t=et->is_ref())) et = Pptr(t)->typ; 
+			while(ref_count-- && (t=et->is_ref())) et = Pptr(t)->typ;
 
 			if(nt->base != TYPE) continue;
 			while (nt->base == TYPE) {
 				bn = nt->bname();
-				if (bn->is_template_arg()) 
+				if (bn->is_template_arg())
 				    break;
 				else bn = 0;
 				nt = nt->bname_type();
@@ -4565,11 +4565,11 @@ is_ftempl_match(Pexpr actuals, Pfunt ft)
 
 		while ( et->base == TYPE ) et = et->bname_type();
 		if (bn == 0) {
-		    if (nt->base == COBJ && et->base == COBJ) 
+		    if (nt->base == COBJ && et->base == COBJ)
 		    { // declaration:  min(X<T>), call:  min(X<int>)
 			Pclass c1 = nt->classtype();
 			Pclass c2 = et->classtype();
-	
+
 			// formal argument is not a template class -- skip it
 			if ( !c1->class_base ) continue;
 
@@ -4604,7 +4604,7 @@ is_ftempl_match(Pexpr actuals, Pfunt ft)
 				delete parray;
 				return 0;
 			}
-				
+
 			if (f->body) {
 				Pfct ff = new fct(0,0,0);
 				*ff = *f;
@@ -4650,20 +4650,20 @@ is_ftempl_match(Pexpr actuals, Pfunt ft)
 
 Pname
 has_templ_instance(Pname fn, Pexpr arg, bit no_err)
-{ /* 
+{ /*
    * invoked by a use of this function, fn: expr::call_fct, ptof
    * args: the actual arguments of the use
-   * if matches template function, return instantiated function 
+   * if matches template function, return instantiated function
    */
 // error('d',"has_templ_instance(%n)", fn);
 
 	if ( fn->is_template_fct() == 0 ) return 0;
 
 	Pfunt ft = templp->is_template(fn->string,FCT);
-	if (ft==0) 
+	if (ft==0)
 		error('i',"%n flagged asYF but not entered inY table",fn);
 
-	if (ft->gen_list && fn->tp->base != OVERLOAD) 
+	if (ft->gen_list && fn->tp->base != OVERLOAD)
 		error('i',"%n gtbl: non-overloaded,Y table: overloaded",fn);
 
 	Pbinding pb = 0;

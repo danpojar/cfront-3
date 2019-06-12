@@ -1,6 +1,6 @@
 /*ident	"@(#)cls4:src/expr2.c	1.29" */
 /*******************************************************************************
- 
+
 C++ source for the C++ Language System, Release 3.0.  This product
 is a new release of the original cfront developed in the computer
 science research center of AT&T Bell Laboratories.
@@ -29,6 +29,7 @@ static void opov_error(Ptype, Ptype, TOK);
 static Pname compare_builtin(Ptype, Ptype, Pname, Pname, Pname, int);
 extern int oper_okay(Ptype, TOK);
 extern Pname best_conv(const Block(Pname)&, Pname&, int&, bit);
+extern Pname has_templ_instance(Pname,Pexpr,bit);
 
 Pname really_dominate(Pname on1, Pname on2, bit tc)
 {
@@ -100,8 +101,8 @@ void name::take_addr()
 // error('d', "%n->take_addr tp: %d %d", this, tp?tp:0, tp?tp->base:0 );
 	// if ( (warning_opt) && (! n_addr_taken) && (tp) && (tp->base==FCT) && Pfct (tp)->f_inline)
 	if ( (warning_opt) && (! n_addr_taken) && (tp) && (tp->base==FCT) && fct_type()->f_inline)
-		error('w',"can't take address of inlineF%n,%n not inlined", this, this);  
-	n_addr_taken++; 
+		error('w',"can't take address of inlineF%n,%n not inlined", this, this);
+	n_addr_taken++;
 	if ( n_sto == EXTERN && tp ) {
 		Ptype t = tp->skiptypedefs();
 		switch ( t->base ) {
@@ -180,18 +181,18 @@ int expr::lval(TOK oper)
 		case DEREF:
      			goto defa;
 		default:
-			if ( ee->tp->base == PTR 
-			     && is_dataMemPtr(ee) ) 
+			if ( ee->tp->base == PTR
+			     && is_dataMemPtr(ee) )
 			{ // check for const class object
     				Pexpr te;
-				te = ee->e1->e1->e1;	 
+				te = ee->e1->e1->e1;
        				if ( te->base == G_ADDROF )
 					te = te->e2;
        				if ( te->base == NAME ) {
 					Ptype pt = te->tp;
 					if ( pt->base == PTR )
 						pt = Pptr(pt)->typ;
-					if ( pt->tconst() ) 
+					if ( pt->tconst() )
 						error("%sCMP of const%n",es,te);
 					return 0;
 				}
@@ -200,7 +201,7 @@ int expr::lval(TOK oper)
 		}
 
 		case DEREF:
-		{	
+		{
 			Pexpr ee1 = ee->e1;
 // error( 'd', "ee1: %k", ee1->base );
 			switch (ee1->base) {	// *& vanishes
@@ -298,7 +299,7 @@ int expr::lval(TOK oper)
 			n = Pname(ee->mem);
 			while (n->base == MDOT) n = Pname(Pref(n)->mem);
 
-			if (deref==0 && 
+			if (deref==0 &&
 				(ee->e1->tp->tconst() || e_const)) {
 
 				switch (oper) {
@@ -465,12 +466,12 @@ int char_to_int(char* s)
 		case '5': case '6': case '7':	/* octal representation */
 			c -= '0';
 			switch (d = *++s) {		/* try for 2 */
-				
+
 			case '0': case '1': case '2': case '3': case '4':
 			case '5': case '6': case '7':
 				d -= '0';
 				switch (e = *++s) {	/* try for 3 */
-					
+
 				case '0': case '1': case '2': case '3': case '4':
 				case '5': case '6': case '7':
 					c = c*64+d*8+e-'0';
@@ -574,7 +575,7 @@ long long str_to_llong(register const char* p)
 			return i;
 
 		default:	/* octal */
-			do 
+			do
 				switch (c) {
 				case 'l':
 				case 'L':
@@ -587,7 +588,7 @@ long long str_to_llong(register const char* p)
 			while (c=*p++);
 			return i;
 		}
-	}	
+	}
 				/* decimal */
 	i = c-'0';
 	while (c=*p++)
@@ -637,7 +638,7 @@ bad:
 static void
 ftp_normalize(char*& str)
 /*
-   strip off leading '0' in a scientific floating point string 
+   strip off leading '0' in a scientific floating point string
    so that str_to_llong() can process it correctly.
 */
 {
@@ -650,14 +651,14 @@ ftp_normalize(char*& str)
 
 	while (c = *p) {
 		switch (c) {
-		case '+': 
-		case '-': 
+		case '+':
+		case '-':
 				pp++;
 				break;
-		case '0': 
+		case '0':
 				if (dotflag) dotcnt++;
 				break;
-		case '.': 
+		case '.':
 				dotflag = 1;
 				break;
 		default:  {			// non-zero digits
@@ -669,7 +670,7 @@ ftp_normalize(char*& str)
 					return;
 				} else {
 					*pp++ = '.';
-					while (*p != 'E' && *p != 'e') 
+					while (*p != 'E' && *p != 'e')
 						if (*p == '.') p++;
 						else *pp++ = *p++;
 				}
@@ -685,7 +686,7 @@ ftp_normalize(char*& str)
 				// have to adjust exponent
 				*pp++ = *p++;
 				int sign = 1;
-				if (*p == '+' || *p == '-') 
+				if (*p == '+' || *p == '-')
 					sign = (*p++ == '-' ? -1 : 1);
 				long long i = sign * str_to_llong(p) - dotcnt - 1;
 				char tmp[40]; // enough for 128-bit doubles
@@ -719,7 +720,7 @@ bit binary_val;
 
 unsigned long long expr::ueval(long long x1, long long x2)
 {
-	unsigned long long i1 = (unsigned long long) x1;	
+	unsigned long long i1 = (unsigned long long) x1;
 	unsigned long long i2 = (unsigned long long) x2;
 //error('d',"ueval %k %lld %lld",base,x1,x2);
 	switch (base) {
@@ -728,7 +729,7 @@ unsigned long long expr::ueval(long long x1, long long x2)
 	case NOT:	return !i2;
 	case COMPL:	return ~i2;
 	case CAST:
-	case G_CAST:	
+	case G_CAST:
 			return i1;
 	case PLUS:	return i1+i2;
 	case MINUS:	return i1-i2;
@@ -747,7 +748,7 @@ unsigned long long expr::ueval(long long x1, long long x2)
 	case OROR:	return i1||i2;
 	case ER:	return i1^i2;
 	case MOD:	if (i2 == 0) {
-				if (Neval == 0) { 
+				if (Neval == 0) {
 					Neval = "mod zero";
 					error("mod zero");
 				}
@@ -756,7 +757,7 @@ unsigned long long expr::ueval(long long x1, long long x2)
 			return i1%i2;
 	case QUEST:	return (cond->eval()) ? i1 : i2;
 	case DIV:	if (i2 == 0) {
-				if (Neval == 0) { 
+				if (Neval == 0) {
 					Neval = "divide by zero";
 					error("divide by zero");
 				}
@@ -810,7 +811,7 @@ long long expr::eval()
 		}
 		return tp2->tsizeof();
 	}
-		
+
 	case NAME:
 	{	Pname n = Pname(this);
 // error('d',"eval %n eval %d %d",n,n->n_evaluated,n->n_val);
@@ -848,7 +849,7 @@ long long expr::eval()
 	}
 	case CAST:
 	case G_CAST:
-	{	if (tp2->base!=FLOAT && tp2->base!=DOUBLE && (e1->base==FCON 
+	{	if (tp2->base!=FLOAT && tp2->base!=DOUBLE && (e1->base==FCON
 		|| (e1->base==UMINUS || e1->base==UPLUS) && e1->e2->base==FCON)) {
 			char*& str = (e1->base==FCON ? e1->string : e1->e2->string);
 			char* p = str;
@@ -865,7 +866,7 @@ long long expr::eval()
 				e1->base = ICON;
 			else
 				e1->e2->base = ICON;
-		}		
+		}
 		long long i = e1->eval();
 		tt = tp2->skiptypedefs();
 
@@ -945,23 +946,23 @@ long long expr::eval()
 		Neval = "";
 		return 1;
 	}
-	
+
 	if (Neval==0
 	    && (
 		e1&&e1->tp&&e1->tp->is_unsigned()
-		 || 
+		 ||
 		e2&&e2->tp&&e2->tp->is_unsigned()
 	    )
 	)
 		return (long long) ueval(i1,i2);
-	
+
 	switch (base) {
 	case UMINUS:	return -i2;
 	case UPLUS:	return i2;
 	case NOT:	return !i2;
 	case COMPL:	return ~i2;
 	case CAST:
-	case G_CAST:	
+	case G_CAST:
 			return i1;
 	case PLUS:	return i1+i2;
 	case MINUS:	return i1-i2;
@@ -980,7 +981,7 @@ long long expr::eval()
 	case OROR:	return i1||i2;
 	case ER:	return i1^i2;
 	case MOD:	if (i2 == 0) {
-				if (Neval == 0) { 
+				if (Neval == 0) {
 					Neval = "mod zero";
 					error("mod zero");
 				}
@@ -989,7 +990,7 @@ long long expr::eval()
 			return i1%i2;
 	case QUEST:	return (cond->eval()) ? i1 : i2;
 	case DIV:	if (i2 == 0) {
-				if (Neval == 0) { 
+				if (Neval == 0) {
 					Neval = "divide by zero";
 					error("divide by zero");
 				}
@@ -1077,7 +1078,7 @@ return_elist(Pname args)
 	return head;
 }
 
-Pexpr 
+Pexpr
 ptof(Pfct ef, Pexpr e, Ptable tbl)
 /*
 	a kludge: initialize/assign-to pointer to function
@@ -1135,7 +1136,7 @@ eee:
 			e = new expr(ELIST,zero,zero);
 			e = new expr(ILIST,e,zero);
 			e->tp = zero_type;
-			return e; 
+			return e;
 		}
 		break;
 
@@ -1176,7 +1177,7 @@ eee:
 				Pexpr arg = return_elist(ef->argtype);
 				nn = has_templ_instance(n,arg);
 			}
-				
+
 			if (nn == 0) {
 				error("cannot deduceT for &overloaded %s()",Pgen(f)->fct_list->f->string);
 				return nn;
@@ -1249,7 +1250,7 @@ Pexpr ptr_init(Pptr p, Pexpr init, Ptable tbl)
 			init = zero;
 		}
 		break;
-	}		
+	}
 	}
 
 	Pclass c1 = p->memof;
@@ -1281,7 +1282,7 @@ Pexpr ptr_init(Pptr p, Pexpr init, Ptable tbl)
 				init->e1 = mptr_assign( temp, init->e1 );
 				init->e1 = new expr( G_CM, init->e1, temp );
 				init->e1->tp = temp->tp;
-		
+
 				init->e2 = mptr_assign( temp, init->e2 );
 				init->e2 = new expr( G_CM, init->e2, temp );
 				init->tp = p;
@@ -1324,7 +1325,7 @@ Pexpr ptr_init(Pptr p, Pexpr init, Ptable tbl)
 										break;
 								default:
 									bad = 1;
-								}	
+								}
 						} // end if (init->base==ILIST)
 						else
 							bad = 1;
@@ -1355,7 +1356,7 @@ Pexpr ptr_init(Pptr p, Pexpr init, Ptable tbl)
 	case FCT:
 		return ptof(Pfct(pit),init,tbl);
 	case COBJ:
-	{	
+	{
 		Pptr r = it->is_ptr_or_ref();
 		Pexpr x = 0;
 		Pname old_Ncoerce = Ncoerce;
@@ -1367,7 +1368,7 @@ Pexpr ptr_init(Pptr p, Pexpr init, Ptable tbl)
 		}
 
 // error('d',"cobj: ptr %t, ref %t",it->is_ptr(),it->is_ref());
-		if (r != 0 || (x && Ncoerce && (r = x->tp->is_ptr_or_ref()))) 
+		if (r != 0 || (x && Ncoerce && (r = x->tp->is_ptr_or_ref())))
 		{
 			if (x && Ncoerce) init = x;
 			Pchecked = 1;
@@ -1376,7 +1377,7 @@ Pexpr ptr_init(Pptr p, Pexpr init, Ptable tbl)
 			if (b==RPTR) p->base = PTR;
 			if (bb==RPTR) r->base = PTR;
 			if (p->check(r,ASSIGN)) {
-				if ( cc && cc->nof && 
+				if ( cc && cc->nof &&
 					Pfct(cc->nof->tp)->f_const &&
         				cc->c_this == init )
 						error("%n const: assignment of%n (%t) to%t",cc->nof,init,init->tp,p);
@@ -1384,7 +1385,7 @@ Pexpr ptr_init(Pptr p, Pexpr init, Ptable tbl)
 					p->base=b;
 					if (init->base==G_ADDROF)
 						error("no standard conversion of%t to%t",init->e2->tp,p);
-					else 
+					else
 						error("no standard conversion of%t to%t",init->tp,p);
 				}
 			}
@@ -1409,7 +1410,7 @@ static Pname Lcoerce, Rcoerce;
 
 int try_to_demote(TOK oper, Ptype t1, Ptype t2)
 /*
-	look at t1 and t2 and see if there are ``demotions'' of t1 
+	look at t1 and t2 and see if there are ``demotions'' of t1
 	and/or t2 so that ``t1 oper t2'' can be made legal
 
 	return	< 0 if there is not
@@ -1823,8 +1824,8 @@ Pexpr expr::oper_overload(Ptable tbl)
 			if (c1->memtbl->look(obb,0)==0) {
 				Pclass bcl = c1->baselist?c1->baselist->bclass:0;
 				// if legal, a=1 can be optimized to a.ctor(1)
-				if ( n2==0 
-				     || 
+				if ( n2==0
+				     ||
 				     !same_class(Pclass(n2->tp),c1)
 				     &&
 				     Pclass(n2->tp)->has_base(c1)==0
@@ -1836,7 +1837,7 @@ Pexpr expr::oper_overload(Ptable tbl)
 					return 0;
 				}
 
-				// make operator=() if no base, different 
+				// make operator=() if no base, different
 				// (smaller) sized base, or two bases
 				if (
 				    bcl && c1->obj_size!=bcl->obj_size
@@ -1847,17 +1848,17 @@ Pexpr expr::oper_overload(Ptable tbl)
 					//take out next line when no non-
 					// member op=
 					if (go > STD) goto glob;
-					return make_assignment(n1) ? 
+					return make_assignment(n1) ?
 						oper_overload(tbl) : 0;
 				}
 				return 0;
 			}
-			// now take care of other assignments, 
+			// now take care of other assignments,
 		}
 
 		Pclass ccl = Pclass(n1->tp);
   		if(strcmp(obb,"__as")) {
-			tcl = ccl; // ugh!!! 
+			tcl = ccl; // ugh!!!
 		}
 		Pexpr mn = ccl->find_name(obb,0);
 
@@ -1870,7 +1871,7 @@ Pexpr expr::oper_overload(Ptable tbl)
 
 		int mo = 0;
 		if (const_obj1) const_obj = 1;
-		if(mname->tp->base == FCT) 
+		if(mname->tp->base == FCT)
 			mo = matchable(mname,e2,const_obj1);
 		else if(mname->tp->base == OVERLOAD) {
 			suppress_error++;
@@ -1891,8 +1892,8 @@ Pexpr expr::oper_overload(Ptable tbl)
 
 		if (mo==0) goto glob;
 		if (
-		     (mo != EXACT || Pclass(n1->tp)->memtbl->look(obb,0)==0) 
-		     && 
+		     (mo != EXACT || Pclass(n1->tp)->memtbl->look(obb,0)==0)
+		     &&
 		     go != EXACT
 		) {
 		    if(
@@ -1930,7 +1931,7 @@ Pexpr expr::oper_overload(Ptable tbl)
 				savep = p;
 				aa->tp = p->typ;
 			}
-			
+
 			Pgen tgen = new gen;
 			name_list nl(gname,0);
 			tgen->fct_list = new name_list(mm,&nl);
@@ -1970,7 +1971,7 @@ Pexpr expr::oper_overload(Ptable tbl)
 		    return typ(tbl);
 		}
 	}
-	
+
 	if (n2 && e1==0) {			/* look for unary operator */
 		if (const_obj2) const_obj = 1;
 		suppress_error++;
@@ -1981,14 +1982,14 @@ Pexpr expr::oper_overload(Ptable tbl)
 
 		while (mname->base==REF || mname->base==MDOT) {
 			mname = Pname(Pexpr(mname)->mem);
-		}	
+		}
 
 		if (mname->n_scope != 0 && mname->n_scope != PUBLIC) {
 			goto glob;
 		}
-		
+
 		int mo = 0;
-		if(mname->tp->base == FCT) 
+		if(mname->tp->base == FCT)
 			mo = matchable(mname,0,const_obj2);
 		else if(mname->tp->base == OVERLOAD) {
 			suppress_error++;
@@ -2003,8 +2004,8 @@ Pexpr expr::oper_overload(Ptable tbl)
 			goto glob;
 		}
 		if (
-		     (mo != EXACT || Pclass(n2->tp)->memtbl->look(obb,0)==0) 
-		     && 
+		     (mo != EXACT || Pclass(n2->tp)->memtbl->look(obb,0)==0)
+		     &&
 		     go != EXACT
 		) {
 		    if(
@@ -2030,7 +2031,7 @@ Pexpr expr::oper_overload(Ptable tbl)
 
 			if(nn==garg) {
 				if(already_ambig==2) already_ambig=0;
-				delete marg; 
+				delete marg;
 				goto glob;
 			}
 			else if(nn==marg) {
@@ -2055,7 +2056,7 @@ Pexpr expr::oper_overload(Ptable tbl)
 		if (ee1 && ee1!=ee2) delete ee1;
 		return typ(tbl);
 	}
-	
+
 glob:
 	if (go != EXACT) {
 		if(
@@ -2084,7 +2085,7 @@ glob:
 			base = gname->n_table == gtbl ? G_CALL : CALL;
 			e1 = new name(gname->string);
 			// if global scope, look only for globals
-			if(gname->n_table == gtbl) 
+			if(gname->n_table == gtbl)
 				Pname(e1)->n_qualifier = sta_name;
 			e2 = ee1;
 			return typ(tbl);
@@ -2102,7 +2103,7 @@ glob:
 		return 0;
 	case ASSIGN:
 		if( n1 && n2
-		    && 
+		    &&
 		    (
 			n1->tp==n2->tp
 			||
@@ -2120,9 +2121,9 @@ glob:
 
 	default:	/* look for conversions to basic types */
 		if( n1
-		    && 
+		    &&
 		    Pclass(n1->tp)->conv
-		    && 
+		    &&
 		    (bb==ANDAND || bb==OROR)
 		) {
 			e1 = check_cond(e1,bb,tbl);
@@ -2130,9 +2131,9 @@ glob:
 		}
 
 		if( n2 && Pclass(n2->tp)->conv
-		    && 
+		    &&
 		    (
-			bb==ANDAND || bb==OROR || bb==NOT || 
+			bb==ANDAND || bb==OROR || bb==NOT ||
 			bb==UMINUS || bb==UPLUS || bb==COMPL
 		    )
 		) {
@@ -2190,7 +2191,7 @@ glob:
 		else
 			error('e',"bad operand for%k:%t",bb,t1?t1:t2);
 
-		if (const_obj && ttd <= 0 && non_const) 
+		if (const_obj && ttd <= 0 && non_const)
 			 error('c'," (no usable const operator%k)\n",bb);
 		else error('c',"\n");
 
@@ -2224,7 +2225,7 @@ Pexpr cast_cptr(Pclass ccl, Pexpr ee, Ptable tbl, int real_cast)
 	&& (!same_class(ocl->baselist->bclass,ccl) || ocl->baselist->base!=NAME)) {
 		// casting derived to second or virtual base?
 		Nptr = 0;
-		Nvis = 0; 
+		Nvis = 0;
 		Nalloc_base = 0;
 		vcllist->clear();
 		vcllist=0;
@@ -2262,7 +2263,7 @@ Pexpr cast_cptr(Pclass ccl, Pexpr ee, Ptable tbl, int real_cast)
 			else Nptr->i1 = 3;
 
 			extern Pexpr this_handler;
-                        if (ee->base==ADDROF || ee->base==G_ADDROF)   
+                        if (ee->base==ADDROF || ee->base==G_ADDROF)
                                 	ee = Nptr;
                         else if (this_handler && ee->base == NAME &&
 			    	strcmp(ee->string,"this") == 0)
@@ -2283,7 +2284,7 @@ Pexpr cast_cptr(Pclass ccl, Pexpr ee, Ptable tbl, int real_cast)
 				p->tp = ee->tp;
                                 ee = p;
 			}
-		}			
+		}
 	}
 
 	if (ccl->baselist
@@ -2371,7 +2372,7 @@ ll:
 				break;
 			}
 			init = 1;
-		} 
+		}
 	//	if (e1) {
 	//		error("Ir for nonCO created using \"new\"");
 	//		e1 = 0;
@@ -2434,7 +2435,7 @@ ll:
 					error("array ofC%n that does not have aK taking noAs",cn);
 					break;
 				}
-					
+
 				if (Pfct(ic->tp)->nargs) {
 					if (!cl->has_vtor()) cl->make_vec_ctor(ic);
 					break;
@@ -2484,7 +2485,7 @@ ll:
 				overFound = 0; //set in call_fct
                                 (void) ee->call_fct(cl->memtbl);
 				if (overFound && overFound->n_scope != EXTERN
-            			&& overFound->n_scope != STATIC) 
+            			&& overFound->n_scope != STATIC)
                 			check_visibility(overFound,0,Pfct(overFound->tp)->memof,cc->ftbl,cc->nof);
         			overFound=0;
                                 Ptype cobj_ptr = new ptr(PTR, tt);
@@ -2513,7 +2514,7 @@ ll:
 			}
 		}
 		else if (e1) {
-			if (same_class(icl,cl) || icl->has_base(cl)) 
+			if (same_class(icl,cl) || icl->has_base(cl))
 				init = 1;
 			else
 				error("new%n(As );%n does not have aK",cn,cn);
@@ -2560,10 +2561,10 @@ ll:
         return this;
 }
 
-static int is_dataMemPtr( Pexpr ee ) 
-/* this is utterly implementation dependent 
- * called by expr::lval to determine 
- * const objects bounds to pointers to data members 
+static int is_dataMemPtr( Pexpr ee )
+/* this is utterly implementation dependent
+ * called by expr::lval to determine
+ * const objects bounds to pointers to data members
  */
 {
 	Pexpr te = ee->e1;
@@ -2589,9 +2590,9 @@ exact123(Pname nn, Ptype tt)
 
 Pname
 compare_builtin(Ptype t1, Ptype t2, Pname n1, Pname n2, Pname fname, int fo)
-/* 
-    routine to compare user-defined operator to built-in 
-    version. returns fname if user-defined operator is 
+/*
+    routine to compare user-defined operator to built-in
+    version. returns fname if user-defined operator is
     preferred, and 0 otherwise.
 */
 {
@@ -2609,15 +2610,15 @@ compare_builtin(Ptype t1, Ptype t2, Pname n1, Pname n2, Pname fname, int fo)
 	    oper==ASSIGN || oper==REF
 	    ||
 	    oper==ASPLUS || oper==ASMINUS
-	    || 
+	    ||
 	    oper==ASMUL || oper==ASDIV
-	    || 
+	    ||
 	    oper==ASMOD || oper==ASAND
-	    || 
+	    ||
 	    oper==ASOR ||  oper==ASER
-	    || 
+	    ||
 	    oper==ASLS || oper==ASRS
-	) 
+	)
 		return fname;
 
 	int t1eobj = (t1 && t1->skiptypedefs()->base == EOBJ);
@@ -2686,11 +2687,11 @@ compare_builtin(Ptype t1, Ptype t2, Pname n1, Pname n2, Pname fname, int fo)
 			Pname nn1 = ff->argtype;
 			Pname nn2 = nn1->n_list;
 			if ( exact123(nn1,t1) || exact123(nn2,t2)) {
-				return fname; 
+				return fname;
 			}
 			else {
 				opov_error(t1,t2,oper);
-				return fname; 
+				return fname;
 			}
 		}
 		else {
@@ -2711,7 +2712,7 @@ compare_builtin(Ptype t1, Ptype t2, Pname n1, Pname n2, Pname fname, int fo)
 
 			if ( exact123(carg,ct)) {
 				if ((!teobj && !exact1(oarg,ot)) ||
-				   (teobj && !exact2(oarg,ot))) 
+				   (teobj && !exact2(oarg,ot)))
 					opov_error(t1,t2,oper);
 				return fname;
 			}
